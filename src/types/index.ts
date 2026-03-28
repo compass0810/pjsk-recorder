@@ -22,3 +22,15 @@ export interface PlayResult {
   clearType: "CLEAR" | "FC" | "AP" | "FAILED";
   updatedAt: number;
 }
+
+export interface RankMatchRecord {
+  id: string; // 一意のID (UUIDやタイムスタンプ)
+  timestamp: number;
+  songName: string;
+  difficulty: Difficulty;
+  level: string;
+  you: { great: number; good: number; bad: number; miss: number; clearType: "CLEAR" | "FC" | "AP" | "FAILED" };
+  rival: { great: number; good: number; bad: number; miss: number; clearType: "CLEAR" | "FC" | "AP" | "FAILED" };
+  result: "WIN" | "LOSE" | "DRAW";
+  pointChange: number; // +1.0, -1.0, +1.2 など
+}
