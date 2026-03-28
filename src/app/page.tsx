@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { fetchSongs } from "@/lib/api";
 import { loadResults, saveResult, getResultKey } from "@/lib/storage";
 import { Song, PlayResult, Difficulty } from "@/types";
@@ -15,158 +15,269 @@ export default function ResultRecorder() {
   const [songs, setSongs] = useState<Song[]>([]);
   const [results, setResults] = useState<Record<string, PlayResult>>({});
   const [selectedEntry, setSelectedEntry] = useState<ListEntry | null>(null);
-  
-  // 入力フォームの状態
-  const [inputs, setInputs] = useState({ great: 0, good: 0, bad: 0, miss: 0 });
-  const [clearType, setClearType] = useState<"CLEAR" | "FC" | "AP" | "FAILED">("CLEAR");
 
+  // フィルター用ステート
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterLevel, setFilterLevel] = useState("ALL");
+  const [filterDiff, setFilterDiff] = useState<Difficulty | "ALL">("ALL");
+  const [filterClearType, setFilterClearType] = useState<"ALL" | "NOCLEAR" | "AP" | "FC" | "CLEAR">("ALL");
+  const [sortType, setSortType] = useState<"name_asc" | "level_desc" | "level_asc" | "acc_desc" | "acc_asc">("level_desc");
+
+  // Toast
+  const [toastMessage, setToastMessage] = useState("");
+
+  const [inputs, setInputs] = useState({ great: 0, good: 0, bad: 0, miss: 0 });
+  // ローディング
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState({ loaded: 0, total: 0 });
+
+  // 初回データ読込
   useEffect(() => {
-    Promise.all([fetchSongs(), Promise.resolve(loadResults())]).then(([songData, savedResults]) => {
-      setSongs(songData);
-      setResults(savedResults);
-    });
+    let isMounted = true;
+    (async () => {
+      setIsLoading(true);
+      const data = await fetchSongs((loaded, total) => {
+        if (isMounted) setLoadingProgress({ loaded, total });
+      });
+      
+      // 一瞬で終わってしまう場合でもUIを体感させるための微小ディレイ
+      await new Promise(r => setTimeout(r, 500));
+
+      if (isMounted) {
+        setSongs(data);
+        const stored = loadResults();
+        setResults(stored);
+        setIsLoading(false);
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  // 譜面ごとのリスト作成
+  // 譜面リストの生成とフィルタリング
   const listEntries = useMemo(() => {
-    return songs.flatMap(song => {
-      const entries: ListEntry[] = [];
-      if (song.X && song.X.trim() !== "" && song.X !== "-") {
-        entries.push({ song, diff: "EXP", level: song.X });
-      }
-      if (song.M && song.M.trim() !== "" && song.M !== "-") {
-        entries.push({ song, diff: "MAS", level: song.M });
-      }
-      if (song.A && song.A.trim() !== "" && song.A !== "-") {
-        entries.push({ song, diff: "APD", level: song.A });
-      }
-      return entries;
+    const entries: ListEntry[] = [];
+    songs.forEach(song => {
+      if (song.X && song.X.trim() !== "" && song.X !== "-") entries.push({ song, diff: "EXP", level: song.X });
+      if (song.M && song.M.trim() !== "" && song.M !== "-") entries.push({ song, diff: "MAS", level: song.M });
+      if (song.A && song.A.trim() !== "" && song.A !== "-") entries.push({ song, diff: "APD", level: song.A });
     });
+
+    return entries.filter(e => {
+      const saved = results[getResultKey(e.song.No, e.diff)];
+
+      // 検索フィルタ
+      if (searchQuery && !e.song.楽曲名.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+      // 難易度フィルタ
+      if (filterDiff !== "ALL" && e.diff !== filterDiff) return false;
+      // レベルフィルタ
+      if (filterLevel !== "ALL" && e.level !== filterLevel) return false;
+      // クリア状況フィルタ
+      if (filterClearType !== "ALL") {
+        if (filterClearType === "NOCLEAR" && saved) return false;
+        if (filterClearType !== "NOCLEAR" && (!saved || saved.clearType !== filterClearType)) return false;
+      }
+      return true;
+    }).sort((a, b) => {
+      // 達成率計算用ヘルパー
+      const getAcc = (entry: ListEntry) => {
+        const r = results[getResultKey(entry.song.No, entry.diff)];
+        const ttl = Number(String(entry.song[`コンボ\n(${entry.diff})` as keyof Song] || "0").replace(/,/g, ""));
+        if (!r || ttl === 0) return -1; // 未プレイ
+        return ((r.perfect * 3 + r.great * 2 + r.good) / (ttl * 3)) * 100;
+      };
+
+      if (sortType === "name_asc") {
+        return a.song.楽曲名.localeCompare(b.song.楽曲名, 'ja');
+      } else if (sortType === "level_desc") {
+        return Number(b.level || 0) - Number(a.level || 0) || a.song.楽曲名.localeCompare(b.song.楽曲名, 'ja');
+      } else if (sortType === "level_asc") {
+        return Number(a.level || 0) - Number(b.level || 0) || a.song.楽曲名.localeCompare(b.song.楽曲名, 'ja');
+      } else if (sortType === "acc_desc") {
+        return getAcc(b) - getAcc(a) || a.song.楽曲名.localeCompare(b.song.楽曲名, 'ja');
+      } else if (sortType === "acc_asc") {
+        return getAcc(a) - getAcc(b) || a.song.楽曲名.localeCompare(b.song.楽曲名, 'ja');
+      }
+      return 0;
+    });
+  }, [songs, results, searchQuery, filterDiff, filterLevel, filterClearType, sortType]);
+
+  const levelOptions = useMemo(() => {
+    const levels = new Set<string>();
+    songs.forEach(s => {
+      if (s.X && s.X !== "-") levels.add(s.X);
+      if (s.M && s.M !== "-") levels.add(s.M);
+      if (s.A && s.A !== "-") levels.add(s.A);
+    });
+    return Array.from(levels).sort((a, b) => Number(b) - Number(a)); // 降順
   }, [songs]);
 
-  // ノーツ数の取得（カンマなど文字混入に対応）
   const getNotes = (song: Song, diff: Difficulty) => {
-    const key = `コンボ(${diff})` as keyof Song;
+    const key = `コンボ\n(${diff})` as keyof Song;
     const val = song[key];
     if (!val) return 0;
     return Number(String(val).replace(/,/g, "")) || 0;
   };
 
-  // 選択変更時にフォームリセット
   useEffect(() => {
     if (selectedEntry) {
       const key = getResultKey(selectedEntry.song.No, selectedEntry.diff);
       const saved = results[key];
       if (saved) {
         setInputs({ great: saved.great, good: saved.good, bad: saved.bad, miss: saved.miss });
-        setClearType(saved.clearType);
       } else {
         setInputs({ great: 0, good: 0, bad: 0, miss: 0 });
-        setClearType("CLEAR");
       }
     }
   }, [selectedEntry, results]);
 
+  const calculatePerfect = () => {
+    if (!selectedEntry) return 0;
+    const totalNotes = getNotes(selectedEntry.song, selectedEntry.diff);
+    return Math.max(0, totalNotes - (inputs.great + inputs.good + inputs.bad + inputs.miss));
+  };
+
+  const calculateAccuracy = (r: PlayResult | undefined, total: number) => {
+    if (!r || total === 0) return null;
+    // PERFECT:3, GREAT:2, GOOD:1, BAD:0, MISS:0
+    const score = (r.perfect * 3) + (r.great * 2) + (r.good * 1);
+    const pct = (score / (total * 3)) * 100;
+    return pct.toFixed(4);
+  };
+
   const handleSave = () => {
     if (!selectedEntry) return;
-    
-    const totalNotes = getNotes(selectedEntry.song, selectedEntry.diff);
-    const totalMisjudges = inputs.great + inputs.good + inputs.bad + inputs.miss;
-    const perfect = Math.max(0, totalNotes - totalMisjudges);
-    
+    const perfect = calculatePerfect();
+
+    let autoClearStatus: "AP" | "FC" | "CLEAR" = "CLEAR";
+    if (inputs.great === 0 && inputs.good === 0 && inputs.bad === 0 && inputs.miss === 0) {
+      autoClearStatus = "AP";
+    } else if (inputs.good === 0 && inputs.bad === 0 && inputs.miss === 0) {
+      autoClearStatus = "FC";
+    }
+
     const newResult: PlayResult = {
       songNo: selectedEntry.song.No,
       difficulty: selectedEntry.diff,
       ...inputs,
       perfect,
-      clearType,
+      clearType: autoClearStatus,
       updatedAt: Date.now()
     };
-    
     saveResult(newResult);
     setResults(prev => ({ ...prev, [getResultKey(selectedEntry.song.No, selectedEntry.diff)]: newResult }));
-    
-    // アラートの代わりに少し演出を入れたいですが、ひとまず標準のアラートで
-    alert("記録を保存しました！");
+
+    setToastMessage("記録を保存しました！");
+    setTimeout(() => setToastMessage(""), 3000);
   };
 
-  const calculateAccuracy = (r: PlayResult | undefined, total: number) => {
-    if (!r || total === 0) return null;
-    const score = (r.perfect * 3) + (r.great * 2) + (r.good * 1);
-    const maxScore = total * 3;
-    const pct = (score / maxScore) * 100;
-    // 小数第4位まで表示
-    return pct.toFixed(4);
-  };
+  if (isLoading) {
+    const pct = loadingProgress.total === 0 ? 0 : Math.round((loadingProgress.loaded / loadingProgress.total) * 100);
+    return (
+      <div className="flex flex-col items-center justify-center h-full absolute inset-0 w-full animate-fade-in-up">
+        <div className="bg-white/80 backdrop-blur-xl rounded-[2rem] p-10 shadow-2xl border border-white flex flex-col items-center max-w-sm w-full">
+          <div className="w-16 h-16 border-4 border-cyan-100 border-t-cyan-500 rounded-full animate-spin mb-6 shadow-sm"></div>
+          <h2 className="text-2xl font-black text-slate-800 tracking-tighter mb-2">読み込み中...</h2>
+          <div className="text-slate-500 font-bold mb-6 font-mono bg-slate-100 px-4 py-1 rounded-full text-sm">
+            {loadingProgress.loaded} / {loadingProgress.total || "????"}
+          </div>
+          <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden shadow-inner flex">
+            <div className="bg-gradient-to-r from-cyan-400 to-blue-500 h-full transition-all duration-75 ease-linear rounded-full" style={{ width: `${pct}%` }}></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex h-full p-8 gap-8 absolute inset-0 overflow-hidden">
-      {/* 楽曲リスト (左ペイン) */}
-      <div className="w-1/2 flex flex-col bg-white/60 backdrop-blur-lg rounded-3xl shadow-xl overflow-hidden border border-white/40 border-t-white/80 shrink-0">
-        <div className="p-4 bg-gradient-to-r from-blue-100/50 to-cyan-100/50 border-b border-blue-200/50 flex justify-between items-center">
-          <h2 className="text-xl font-bold text-blue-800">楽曲一覧</h2>
-          <span className="text-sm font-bold text-blue-600">全 {listEntries.length} 譜面</span>
+    <div className="flex h-full p-6 lg:p-8 gap-6 absolute inset-0 overflow-hidden">
+
+      {/* Toast */}
+      <div className={`fixed top-6 right-6 z-50 transition-all duration-500 transform ${toastMessage ? "translate-x-0 opacity-100" : "translate-x-8 opacity-0 pointer-events-none"}`}>
+        <div className="bg-white/90 backdrop-blur border-l-4 border-cyan-400 p-4 rounded-xl shadow-2xl flex items-center gap-4">
+          <div className="bg-cyan-100 text-cyan-600 rounded-full w-8 h-8 flex items-center justify-center font-bold">✓</div>
+          <div className="font-bold text-slate-700">{toastMessage}</div>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          {listEntries.length === 0 && <p className="text-center text-slate-500 mt-10 animate-pulse">読み込み中...</p>}
-          
-          {listEntries.map(entry => {
+      </div>
+
+      {/* 楽曲リストペイン */}
+      <div className="w-1/3 min-w-[320px] flex flex-col bg-white/70 backdrop-blur-xl rounded-[2rem] shadow-xl overflow-hidden border border-white shrink-0">
+        <div className="p-5 bg-gradient-to-r from-blue-100/30 to-cyan-100/30 border-b border-white/50 space-y-3">
+          <div className="flex justify-between items-center mb-1">
+            <h2 className="text-xl font-black text-slate-800 tracking-tight">Songs</h2>
+            <span className="text-xs font-bold px-2 py-1 bg-white/80 rounded-full text-slate-500">{listEntries.length} 譜面</span>
+          </div>
+
+          <input
+            type="text" placeholder="楽曲名で検索..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+            className="w-full bg-white/80 border border-slate-200 outline-none p-2.5 rounded-xl font-bold text-sm focus:ring-2 focus:ring-cyan-300 transition-all shadow-inner"
+          />
+
+          <div className="flex gap-2 text-xs font-bold">
+            <select value={filterDiff} onChange={e => setFilterDiff(e.target.value as any)} className="bg-white/80 p-2 rounded-lg border border-slate-200 outline-none flex-1">
+              <option value="ALL">全難易度</option><option value="EXP">EXPERT</option><option value="MAS">MASTER</option><option value="APD">APPEND</option>
+            </select>
+            <select value={filterLevel} onChange={e => setFilterLevel(e.target.value)} className="bg-white/80 p-2 rounded-lg border border-slate-200 outline-none w-20">
+              <option value="ALL">Lv</option>{levelOptions.map(l => <option key={l} value={l}>{l}</option>)}
+            </select>
+            <select value={filterClearType} onChange={e => setFilterClearType(e.target.value as any)} className="bg-white/80 p-2 rounded-lg border border-slate-200 outline-none flex-1">
+              <option value="ALL">状態</option><option value="NOCLEAR">未クリア</option><option value="CLEAR">CLEAR</option><option value="FC">FC</option><option value="AP">AP</option>
+            </select>
+          </div>
+          <div className="flex gap-2 text-xs font-bold pt-1">
+            <select value={sortType} onChange={e=>setSortType(e.target.value as any)} className="bg-white/90 p-2 rounded-lg border border-slate-200 outline-none flex-1 text-slate-700">
+              <option value="name_asc">五十音順</option>
+              <option value="level_desc">難易度 (高い順)</option>
+              <option value="level_asc">難易度 (低い順)</option>
+              <option value="acc_desc">達成率 (高い順)</option>
+              <option value="acc_asc">達成率 (低い順)</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-3 space-y-2">
+          {listEntries.length === 0 && <p className="text-center text-slate-400 mt-10 font-bold">見つかりませんでした</p>}
+          {listEntries.map((entry, idx) => {
             const key = getResultKey(entry.song.No, entry.diff);
             const saved = results[key];
             const isSelected = selectedEntry?.song.No === entry.song.No && selectedEntry?.diff === entry.diff;
-            
-            // 難易度によるカラー切り替え
-            const diffColor = entry.diff === "EXP" ? "bg-[var(--color-diff-expert)]" : 
-                              entry.diff === "MAS" ? "bg-[var(--color-diff-master)]" : 
-                              "bg-[var(--color-diff-append)]";
-            const diffTextColor = entry.diff === "EXP" ? "text-[var(--color-diff-expert)]" : 
-                                  entry.diff === "MAS" ? "text-[var(--color-diff-master)]" : 
-                                  "text-[var(--color-diff-append)]";
-                                  
-            const clearBadgeColor = saved?.clearType === "AP" ? "border-blue-400 text-blue-500" :
-                                    saved?.clearType === "FC" ? "border-pink-400 text-pink-500" :
-                                    saved?.clearType === "CLEAR" ? "border-orange-400 text-orange-500" :
-                                    "border-gray-300 text-gray-400";
 
-            const notes = getNotes(entry.song, entry.diff);
-            const acc = calculateAccuracy(saved, notes);
+            const diffColor = entry.diff === "EXP" ? "bg-[var(--color-diff-expert)]" : entry.diff === "MAS" ? "bg-[var(--color-diff-master)]" : "bg-[var(--color-diff-append)]";
+            const diffRingColor = entry.diff === "EXP" ? "ring-[var(--color-diff-expert)]" : entry.diff === "MAS" ? "ring-[var(--color-diff-master)]" : "ring-[var(--color-diff-append)]";
+            const diffTextColor = entry.diff === "EXP" ? "text-[var(--color-diff-expert)]" : entry.diff === "MAS" ? "text-[var(--color-diff-master)]" : "text-[var(--color-diff-append)]";
 
             return (
               <button
                 key={key}
                 onClick={() => setSelectedEntry(entry)}
-                className={`w-full text-left p-3 rounded-2xl transition-all duration-200 shadow-sm border flex items-center gap-4 ${
-                  isSelected 
-                    ? "bg-gradient-to-r from-white to-blue-50/80 border-cyan-400 ring-2 ring-cyan-400/30 scale-[1.02]" 
-                    : "bg-white/80 border-slate-200 hover:bg-white hover:shadow-md"
-                }`}
+                style={{ animationDelay: `${idx * 0.03}s` }}
+                className={`w-full text-left p-3 rounded-[1.25rem] transition-all duration-300 flex items-center gap-4 animate-fade-in-up
+                  ${isSelected ? `bg-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] ring-2 ${diffRingColor} scale-100 relative z-10` : "bg-white/50 border border-slate-200/50 hover:bg-white/80 hover:shadow-md hover:scale-[1.01]"}
+                `}
               >
-                {/* 左端：丸い難易度とレベル枠 */}
-                <div className={`w-16 h-16 rounded-full border-2 flex flex-col items-center justify-center shrink-0 ${diffTextColor} border-current`}>
-                  <div className="text-[10px] font-bold uppercase leading-none mt-1">{entry.diff === "EXP" ? "EXPERT" : entry.diff === "MAS" ? "MASTER" : "APPEND"}</div>
-                  <div className="text-2xl font-black leading-none mt-1">{entry.level}</div>
-                </div>
-                
-                {/* ジャケット */}
-                <div className="w-16 h-16 bg-slate-200 rounded-xl shrink-0 overflow-hidden flex items-center justify-center text-slate-400 text-xs font-bold border border-slate-300">
-                  <div className="bg-stripes w-full h-full opacity-30"></div>
+                {/* 難易度とレベルの丸形バッジ */}
+                <div className={`w-12 h-12 rounded-full flex flex-col items-center justify-center text-white shrink-0 shadow-sm ${diffColor}`}>
+                  <div className="text-[10px] font-black leading-none opacity-90">{entry.diff}</div>
+                  <div className="text-xl font-black leading-none mt-0.5">{entry.level}</div>
                 </div>
 
-                {/* 曲名とRECORD */}
-                <div className="flex-1 min-w-0 flex flex-col justify-center">
-                  <div className="font-bold text-slate-800 truncate text-lg">{entry.song.楽曲名}</div>
-                  <div className="flex items-center gap-3 mt-1 text-sm font-bold">
-                    {saved ? (
-                      <>
-                        <span className={`px-2 py-0.5 rounded border-2 leading-none uppercase ${clearBadgeColor}`}>
-                          {saved.clearType.substring(0,2)}
+                <div className="flex-1 min-w-0 pr-2">
+                  <div className={`text-[15px] font-black truncate leading-tight ${isSelected ? "text-slate-900" : "text-slate-700"}`}>{entry.song.楽曲名}</div>
+                  {!saved ? (
+                    <div className="text-xs font-bold text-slate-400 mt-1">未プレイ</div>
+                  ) : (
+                    <div className="flex items-center gap-2 mt-1">
+                      {saved.clearType !== "CLEAR" && (
+                        <span className={`text-[10px] font-black px-1.5 py-0.5 rounded border leading-none uppercase
+                           ${saved.clearType === "AP" ? "border-sky-400 text-sky-500 bg-sky-50" : saved.clearType === "FC" ? "border-pink-400 text-pink-500 bg-pink-50" : "border-slate-300 text-slate-400"}`}>
+                          {saved.clearType}
                         </span>
-                        <span className="text-slate-600">BEST: {acc}%</span>
-                      </>
-                    ) : (
-                      <span className="text-slate-400">未記録</span>
-                    )}
-                  </div>
+                      )}
+                      <span className={`text-xs font-black font-mono ${isSelected ? diffTextColor : "text-slate-500"}`}>{calculateAccuracy(saved, getNotes(entry.song, entry.diff))}%</span>
+                    </div>
+                  )}
                 </div>
               </button>
             );
@@ -174,101 +285,100 @@ export default function ResultRecorder() {
         </div>
       </div>
 
-      {/* 詳細データ入力 (右ペイン) */}
-      <div className="flex-1 flex flex-col bg-white/70 backdrop-blur-xl rounded-3xl shadow-xl overflow-hidden border border-white/50 shrink-0">
+      {/* 右ペイン: 最適化された入力フォーム */}
+      <div className="flex-1 flex flex-col items-center justify-center p-4 relative">
         {!selectedEntry ? (
-          <div className="flex-1 flex items-center justify-center text-slate-400 font-bold">
-            左のリストから譜面を選択してください
+          <div className="text-slate-400 font-bold bg-white/40 backdrop-blur px-8 py-4 rounded-full border border-white/50 tracking-wider">
+            左のリストから楽曲を選択してください
           </div>
         ) : (
-          <>
-            {/* ヘッダー */}
-            <div className={`p-6 border-b text-white flex items-center justify-between shadow-sm
-              ${selectedEntry.diff === "EXP" ? "bg-gradient-to-r from-[var(--color-diff-expert)] to-rose-400" : 
-                selectedEntry.diff === "MAS" ? "bg-gradient-to-r from-[var(--color-diff-master)] to-purple-400" : 
-                "bg-gradient-to-r from-[var(--color-diff-append)] to-fuchsia-400"}`}
-            >
-              <div>
-                <h2 className="text-2xl font-bold tracking-tight">{selectedEntry.song.楽曲名}</h2>
-                <div className="mt-1 font-bold opacity-90">
-                  {selectedEntry.diff === "EXP" ? "EXPERT" : selectedEntry.diff === "MAS" ? "MASTER" : "APPEND"} LEVEL {selectedEntry.level}
+          <div className="w-full max-w-2xl bg-white/85 backdrop-blur-2xl rounded-[2.5rem] shadow-2xl border-2 border-white/80 overflow-hidden flex flex-col h-full animate-fade-in-up relative">
+
+            {/* 動的な背景装飾 */}
+            <div className={`absolute -top-32 -right-32 w-64 h-64 rounded-full blur-3xl opacity-20 pointer-events-none transition-colors duration-1000
+              ${selectedEntry.diff === "EXP" ? "bg-rose-500" : selectedEntry.diff === "MAS" ? "bg-purple-500" : "bg-fuchsia-500"}`} />
+
+            {/* ヘッダー部 */}
+            <div className="px-10 pt-10 pb-6 flex items-end gap-6 relative z-10">
+              <div className="w-24 h-24 bg-slate-100 rounded-[1.5rem] shadow-inner border-2 border-slate-200/50 flex flex-col items-center justify-center shrink-0 p-2 overflow-hidden relative">
+                <div className="opacity-10 absolute inset-0 bg-stripes pointer-events-none" />
+                <span className={`font-black uppercase text-[10px] ${selectedEntry.diff === "EXP" ? "text-[var(--color-diff-expert)]" : selectedEntry.diff === "MAS" ? "text-[var(--color-diff-master)]" : "text-[var(--color-diff-append)]"}`}>jacket</span>
+              </div>
+              <div className="flex-1 pb-1">
+                <div className="flex items-center gap-3 mb-2">
+                  <span className={`px-2 py-0.5 rounded text-xs font-black text-white ${selectedEntry.diff === "EXP" ? "bg-[var(--color-diff-expert)]" : selectedEntry.diff === "MAS" ? "bg-[var(--color-diff-master)]" : "bg-[var(--color-diff-append)]"}`}>
+                    {selectedEntry.diff === "EXP" ? "EXPERT" : selectedEntry.diff === "MAS" ? "MASTER" : "APPEND"} {selectedEntry.level}
+                  </span>
+                </div>
+                <h2 className="text-4xl font-black text-slate-800 tracking-tighter leading-tight">{selectedEntry.song.楽曲名}</h2>
+              </div>
+              <div className="text-right pb-1">
+                <div className="text-xs font-black text-slate-400 tracking-wider mb-1 uppercase">Best Accuracy</div>
+                <div className="text-3xl font-black font-mono text-cyan-500 border-b-2 border-cyan-200 pb-1">
+                  {calculateAccuracy(results[getResultKey(selectedEntry.song.No, selectedEntry.diff)], getNotes(selectedEntry.song, selectedEntry.diff)) || "---.----"}<span className="text-lg opacity-70 ml-1">%</span>
                 </div>
               </div>
             </div>
 
-            {/* 入力フォーム */}
-            <div className="p-8 flex-1 overflow-y-auto">
-              <div className="max-w-md mx-auto space-y-8">
-                
+            {/* 入力エリア */}
+            <div className="flex-1 px-10 pb-10 flex flex-col justify-center relative z-10">
+              <div className="bg-slate-50/50 rounded-[2rem] p-8 border border-white/60 shadow-inner flex flex-col h-full">
+
                 {/* 自動計算 PERFECT / TOTAL */}
-                <div className="bg-gradient-to-br from-white to-slate-50 rounded-2xl p-6 text-center shadow-md border border-slate-100 flex justify-around items-center">
-                  <div className="flex flex-col items-center">
-                    <div className="text-[var(--color-judge-perfect)] font-bold tracking-widest text-sm mb-1">PERFECT</div>
-                    <div className="text-4xl font-black font-mono text-[var(--color-judge-perfect)]">
-                      {Math.max(0, getNotes(selectedEntry.song, selectedEntry.diff) - (inputs.great + inputs.good + inputs.bad + inputs.miss))}
+                <div className="flex justify-between items-center mb-8 px-8">
+                  <div className="flex-1 text-center">
+                    <div className="text-orange-400/80 font-black text-sm tracking-widest mb-1">PERFECT</div>
+                    <div className="text-6xl font-black font-mono text-orange-400 transition-all duration-300">
+                      {calculatePerfect()}
                     </div>
                   </div>
-                  
-                  <div className="h-12 w-px bg-slate-200"></div>
-
-                  <div className="flex flex-col items-center">
-                    <div className="text-slate-400 font-bold tracking-widest text-sm mb-1">TOTAL</div>
-                    <div className="text-3xl font-black font-mono text-slate-400">
+                  <div className="w-px h-16 bg-slate-200/80 mx-4" />
+                  <div className="flex-1 text-center">
+                    <div className="text-slate-400 font-black text-sm tracking-widest mb-1">TOTAL NOTES</div>
+                    <div className="text-4xl font-black font-mono text-slate-400">
                       {getNotes(selectedEntry.song, selectedEntry.diff)}
                     </div>
                   </div>
                 </div>
 
-                {/* 判定入力 */}
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 space-y-4">
-                  {(["great", "good", "bad", "miss"] as const).map((judge) => {
-                    const colorMap = {
-                      great: "text-[var(--color-judge-great)]",
-                      good: "text-[var(--color-judge-good)]",
-                      bad: "text-[var(--color-judge-bad)]",
-                      miss: "text-[var(--color-judge-miss)]"
-                    };
-                    return (
-                      <div key={judge} className="flex justify-between items-center pb-3 border-b border-slate-100 last:border-0 last:pb-0">
-                        <span className={`font-bold uppercase tracking-wider ${colorMap[judge]}`}>{judge}</span>
-                        <input 
-                          type="number"
-                          min="0"
-                          value={inputs[judge] || ""}
-                          onChange={(e) => setInputs(prev => ({ ...prev, [judge]: Number(e.target.value) }))}
-                          className="w-20 text-right text-xl border-b-2 border-slate-200 font-bold bg-transparent outline-none focus:border-cyan-400 transition-colors"
-                        />
-                      </div>
-                    )
-                  })}
+                {/* 詳細入力フォーム */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 flex-1">
+                  {[
+                    { key: "great", label: "GREAT", colorClasses: { label: "text-pink-400", bgLine: "bg-pink-400/20 group-focus-within:bg-pink-400", ring: "focus-within:ring-pink-300", input: "text-pink-500" } },
+                    { key: "good", label: "GOOD", colorClasses: { label: "text-blue-400", bgLine: "bg-blue-400/20 group-focus-within:bg-blue-400", ring: "focus-within:ring-blue-300", input: "text-blue-500" } },
+                    { key: "bad", label: "BAD", colorClasses: { label: "text-emerald-400", bgLine: "bg-emerald-400/20 group-focus-within:bg-emerald-400", ring: "focus-within:ring-emerald-300", input: "text-emerald-500" } },
+                    { key: "miss", label: "MISS", colorClasses: { label: "text-slate-400", bgLine: "bg-slate-400/20 group-focus-within:bg-slate-400", ring: "focus-within:ring-slate-300", input: "text-slate-700" } },
+                  ].map((j) => (
+                    <label key={j.key} className={`bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col group transition-all duration-200 focus-within:ring-2 ${j.colorClasses.ring} hover:shadow-md cursor-text relative overflow-hidden`}>
+                      <div className={`absolute top-0 left-0 w-full h-1 ${j.colorClasses.bgLine} transition-colors`} />
+                      <span className={`text-sm font-black tracking-wider ${j.colorClasses.label} mb-2 uppercase`}>{j.label}</span>
+                      <input
+                        type="number" min="0"
+                        value={(inputs as any)[j.key] === 0 ? "" : (inputs as any)[j.key]} placeholder="0"
+                        onChange={e => setInputs(prev => ({ ...prev, [j.key]: Number(e.target.value) }))}
+                        className={`w-full text-right text-4xl font-black font-mono bg-transparent outline-none ${j.colorClasses.input} flex-1`}
+                      />
+                    </label>
+                  ))}
                 </div>
 
-                {/* クリア判定と保存ボタン */}
-                <div className="space-y-4">
-                  <select 
-                    value={clearType} 
-                    onChange={e => setClearType(e.target.value as any)}
-                    className="w-full p-4 rounded-xl border border-slate-200 font-bold text-center outline-none focus:ring-2 focus:ring-cyan-300 appearance-none bg-white font-mono cursor-pointer"
-                  >
-                    <option value="CLEAR">CLEAR</option>
-                    <option value="FC">FULL COMBO (FC)</option>
-                    <option value="AP">ALL PERFECT (AP)</option>
-                    <option value="FAILED">FAILED (LIFE 0)</option>
-                  </select>
-
-                  <button 
+                {/* アクション制御（クリアセレクト＆保存） */}
+                <div className="mt-8 flex gap-4 h-16">
+                  <button
                     onClick={handleSave}
-                    className="w-full py-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-bold text-lg shadow-lg hover:shadow-cyan-500/30 hover:-translate-y-0.5 transition-all active:translate-y-0"
+                    className="flex-1 bg-gradient-to-br from-cyan-400 to-blue-500 text-white rounded-2xl shadow-lg shadow-cyan-500/30 font-black tracking-widest text-xl hover:shadow-cyan-500/50 hover:-translate-y-0.5 active:translate-y-0 transition-all cursor-pointer"
                   >
-                    記録を保存する
+                    RECORD SAVE
                   </button>
                 </div>
-                
+
               </div>
             </div>
-          </>
+
+          </div>
         )}
       </div>
+
     </div>
   );
 }

@@ -4,9 +4,9 @@ export interface Song {
   X: string;
   M: string;
   A: string;
-  "コンボ(EXP)": string;
-  "コンボ(MAS)": string;
-  "コンボ(APD)": string;
+  "コンボ\n(EXP)": string;
+  "コンボ\n(MAS)": string;
+  "コンボ\n(APD)": string;
 }
 
 export type Difficulty = "EXP" | "MAS" | "APD";
@@ -29,8 +29,16 @@ export interface RankMatchRecord {
   songName: string;
   difficulty: Difficulty;
   level: string;
+  rivalName: string;
   you: { great: number; good: number; bad: number; miss: number; clearType: "CLEAR" | "FC" | "AP" | "FAILED" };
   rival: { great: number; good: number; bad: number; miss: number; clearType: "CLEAR" | "FC" | "AP" | "FAILED" };
   result: "WIN" | "LOSE" | "DRAW";
   pointChange: number; // +1.0, -1.0, +1.2 など
+}
+
+export interface UpdateLog {
+  version: string;
+  date: string;
+  title: string;
+  content: string;
 }

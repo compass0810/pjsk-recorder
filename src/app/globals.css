@@ -21,13 +21,37 @@
 
   --color-diff-expert: #f43f5e;   /* ローズ系 */
   --color-diff-master: #a855f7;    /* パープル系 */
-  --color-diff-append: #c026d3;   /* フューシャ系 */
+  --color-diff-append: #ff77aa;   /* ピンク寄り */
+
+  --animate-fade-in-up: fade-in-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  --animate-pulse-slow: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+
+  @keyframes fade-in-up {
+    0% { opacity: 0; transform: translateY(15px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
 }
 
 body {
   background: linear-gradient(135deg, var(--color-sekai-bg-start) 0%, var(--color-sekai-bg-end) 100%);
   background-attachment: fixed;
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
   min-height: 100vh;
+  overflow: hidden; /* スクロールは各要素で行う */
+}
+
+/* カスタムスクロールバー */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
 }
