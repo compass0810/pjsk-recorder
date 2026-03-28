@@ -2,11 +2,21 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { db } from "@/lib/db";
 
 export default function Sidebar() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    const checkAdmin = async () => {
+      const profile = await db.profile.get();
+      setIsAdmin(!!profile?.is_admin);
+    };
+    checkAdmin();
+  }, []);
 
   const navItems = [
     { label: "リザルト記録", short: "R", path: "/" },
@@ -14,8 +24,13 @@ export default function Sidebar() {
     { label: "譜面メーカー情報", short: "MK", path: "/maker" },
     { label: "アップデートログ", short: "LG", path: "/log" },
     { label: "注意事項", short: "NT", path: "/notice" },
+    { label: "不具合報告", short: "BG", path: "/bugs" },
     { label: "アカウント", short: "AC", path: "/account" },
   ];
+
+  if (isAdmin) {
+    navItems.push({ label: "管理ページ", short: "AD", path: "/admin" });
+  }
 
   return (
     <aside className={`${isOpen ? 'w-70' : 'w-20'} min-h-[100dvh] bg-white/40 backdrop-blur-md border-r border-white/50 flex flex-col shadow-[4px_0_24px_rgba(0,0,0,0.05)] relative z-10 transition-all duration-300 pointer-events-auto`}>

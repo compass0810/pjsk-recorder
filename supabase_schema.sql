@@ -14,6 +14,7 @@ CREATE TABLE public.profiles (
   base_lose integer NOT NULL DEFAULT 0,
   base_draw integer NOT NULL DEFAULT 0,
   base_aps integer NOT NULL DEFAULT 0,
+  is_admin boolean NOT NULL DEFAULT false,
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   CONSTRAINT profiles_pkey PRIMARY KEY (id),
@@ -107,3 +108,69 @@ $$ language 'plpgsql';
 
 CREATE TRIGGER update_profiles_modtime BEFORE UPDATE ON public.profiles FOR EACH ROW EXECUTE FUNCTION update_modified_column();
 CREATE TRIGGER update_play_results_modtime BEFORE UPDATE ON public.play_results FOR EACH ROW EXECUTE FUNCTION update_modified_column();
+
+-- ==========================================
+-- 5. bugs テーブル (不具合報告)
+-- ==========================================
+CREATE TABLE public.bugs (
+  id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  username text NOT NULL,
+  title text NOT NULL,
+  content text NOT NULL,
+  level integer NOT NULL DEFAULT 1, -- 1: 低, 2: 中, 3: 高
+  status text NOT NULL DEFAULT 'open', -- 'open', 'investigating', 'resolved'
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+-- RLS
+ALTER TABLE public.bugs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "不具合は誰でも参照可能" ON public.bugs FOR SELECT USING (true);
+CREATE POLICY "ログインユーザーは不具合を投稿可能" ON public.bugs FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "管理人のみ不具合を更新可能" ON public.bugs FOR UPDATE USING (
+  EXISTS (SELECT 1 FROM public.profiles WHERE user_id = auth.uid() AND is_admin = true)
+);
+
+-- ==========================================
+-- 6. bug_comments テーブル (不具合への返信)
+-- ==========================================
+CREATE TABLE public.bug_comments (
+  id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+  bug_id uuid NOT NULL REFERENCES public.bugs(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  username text NOT NULL,
+  content text NOT NULL,
+  is_dev boolean NOT NULL DEFAULT false,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+-- RLS
+ALTER TABLE public.bug_comments ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "コメントは誰でも参照可能" ON public.bug_comments FOR SELECT USING (true);
+CREATE POLICY "ログインユーザーはコメントを投稿可能" ON public.bug_comments FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE TRIGGER update_bugs_modtime BEFORE UPDATE ON public.bugs FOR EACH ROW EXECUTE FUNCTION update_modified_column();
+
+-- ==========================================
+-- 7. system_config テーブル (システム設定・メンテナンス管理)
+-- ==========================================
+CREATE TABLE public.system_config (
+  key text NOT NULL PRIMARY KEY,
+  value jsonb NOT NULL,
+  updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+-- 初期データの挿入 (メンテナンスOFF)
+INSERT INTO public.system_config (key, value)
+VALUES ('maintenance', '{"active": false, "start": "", "end": "", "type": "regular", "reason": ""}')
+ON CONFLICT (key) DO NOTHING;
+
+-- RLS
+ALTER TABLE public.system_config ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "システム設定は誰でも参照可能" ON public.system_config FOR SELECT USING (true);
+CREATE POLICY "管理人のみシステム設定を更新可能" ON public.system_config FOR UPDATE USING (
+  EXISTS (SELECT 1 FROM public.profiles WHERE user_id = auth.uid() AND is_admin = true)
+);
+
+CREATE TRIGGER update_system_config_modtime BEFORE UPDATE ON public.system_config FOR EACH ROW EXECUTE FUNCTION update_modified_column();

@@ -1,5 +1,5 @@
 import { supabase } from "./supabase";
-import { RankMatchRecord, PlayResult } from "../types";
+import { RankMatchRecord, PlayResult, Bug, BugComment } from "../types";
 
 // DB Access Layer (Supabase / Cloud Version)
 // 全データはサーバー側でユーザーIDに紐づけて保存されます
@@ -9,7 +9,7 @@ export const db = {
     get: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return null;
-      const { data } = await supabase.from("profiles").select("*").eq("user_id", user.id).single();
+      const { data } = await supabase.from("profiles").select("*, is_admin").eq("user_id", user.id).single();
       return data;
     },
     updatePoints: async (points: number) => {
@@ -160,6 +160,97 @@ export const db = {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       await supabase.from("rankmatch_records").delete().eq("id", id).eq("user_id", user.id);
+    }
+  },
+  
+  bugs: {
+    getAll: async (): Promise<Bug[]> => {
+      const { data } = await supabase.from("bugs").select("*").order("created_at", { ascending: false });
+      return (data || []).map(b => ({
+        id: b.id,
+        userId: b.user_id,
+        username: b.username,
+        title: b.title,
+        content: b.content,
+        level: b.level as 1 | 2 | 3,
+        status: b.status as any,
+        createdAt: new Date(b.created_at).getTime(),
+        updatedAt: new Date(b.updated_at).getTime()
+      }));
+    },
+    create: async (bug: Omit<Bug, 'id' | 'createdAt' | 'updatedAt' | 'status'>) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+      const { data, error } = await supabase.from("bugs").insert({
+        user_id: user.id,
+        username: bug.username,
+        title: bug.title,
+        content: bug.content,
+        level: bug.level,
+        status: 'open'
+      }).select().single();
+      if (error) throw error;
+      return data;
+    },
+    updateStatus: async (id: string, status: Bug['status']) => {
+      await supabase.from("bugs").update({ status }).eq("id", id);
+    },
+    delete: async (id: string) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      await supabase.from("bugs").delete().eq("id", id);
+    }
+  },
+
+  bugComments: {
+    getByBugId: async (bugId: string): Promise<BugComment[]> => {
+      const { data } = await supabase.from("bug_comments").select("*").eq("bug_id", bugId).order("created_at", { ascending: true });
+      return (data || []).map(c => ({
+        id: c.id,
+        bugId: c.bug_id,
+        userId: c.user_id,
+        username: c.username,
+        content: c.content,
+        isDev: c.is_dev,
+        createdAt: new Date(c.created_at).getTime()
+      }));
+    },
+    add: async (comment: Omit<BugComment, 'id' | 'createdAt'>) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+      const { data, error } = await supabase.from("bug_comments").insert({
+        bug_id: comment.bugId,
+        user_id: user.id,
+        username: comment.username,
+        content: comment.content,
+        is_dev: comment.isDev
+      }).select().single();
+      if (error) throw error;
+      return data;
+    }
+  },
+
+  admin: {
+    getStats: async () => {
+      const [users, results, ranks, bugs] = await Promise.all([
+        supabase.from("profiles").select("*", { count: "exact", head: true }),
+        supabase.from("play_results").select("*", { count: "exact", head: true }),
+        supabase.from("rankmatch_records").select("*", { count: "exact", head: true }),
+        supabase.from("bugs").select("*", { count: "exact", head: true }),
+      ]);
+      return {
+        userCount: users.count || 0,
+        resultCount: results.count || 0,
+        rankMatchCount: ranks.count || 0,
+        bugCount: bugs.count || 0
+      };
+    },
+    getMaintenance: async () => {
+      const { data } = await supabase.from("system_config").select("value").eq("key", "maintenance").single();
+      return data?.value || { active: false, start: "", end: "", type: "regular", reason: "" };
+    },
+    setMaintenance: async (config: any) => {
+      await supabase.from("system_config").update({ value: config }).eq("key", "maintenance");
     }
   }
 };

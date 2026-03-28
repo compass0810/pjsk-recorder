@@ -37,6 +37,28 @@ export interface RankMatchRecord {
   pointChange: number; // +1.0, -1.0, +1.2 など
 }
 
+export interface Bug {
+  id: string;
+  userId: string;
+  username: string;
+  title: string;
+  content: string;
+  level: 1 | 2 | 3;
+  status: 'open' | 'investigating' | 'resolved';
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface BugComment {
+  id: string;
+  bugId: string;
+  userId: string;
+  username: string;
+  content: string;
+  isDev: boolean;
+  createdAt: number;
+}
+
 export interface UpdateLog {
   version: string;
   date: string;
