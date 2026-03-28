@@ -39,9 +39,9 @@ export default function ResultRecorder() {
       const data = await fetchSongs((loaded, total) => {
         if (isMounted) setLoadingProgress({ loaded, total });
       });
-      
+
       // 一瞬で終わってしまう場合でもUIを体感させるための微小ディレイ
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise(r => setTimeout(r, 300));
 
       if (isMounted) {
         setSongs(data);
@@ -227,7 +227,7 @@ export default function ResultRecorder() {
             </select>
           </div>
           <div className="flex gap-2 text-xs font-bold pt-1">
-            <select value={sortType} onChange={e=>setSortType(e.target.value as any)} className="bg-white/90 p-2 rounded-lg border border-slate-200 outline-none flex-1 text-slate-700">
+            <select value={sortType} onChange={e => setSortType(e.target.value as any)} className="bg-white/90 p-2 rounded-lg border border-slate-200 outline-none flex-1 text-slate-700">
               <option value="name_asc">五十音順</option>
               <option value="level_desc">難易度 (高い順)</option>
               <option value="level_asc">難易度 (低い順)</option>
