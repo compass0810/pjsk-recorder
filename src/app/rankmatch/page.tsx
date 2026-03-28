@@ -388,10 +388,20 @@ export default function RankMatchRecorder() {
         <div className="xl:w-[60%] flex flex-col bg-white/85 backdrop-blur-2xl rounded-[1.5rem] shadow-xl border border-white/80 shrink-0 p-5 relative animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
 
           <div className="flex flex-col sm:flex-row items-center gap-2 mb-4">
-            <div className="flex-1 flex items-center justify-between bg-slate-50/80 rounded-lg shadow-sm border border-slate-100 pr-2 w-full">
+            <div className="flex-1 flex items-center bg-slate-50/80 rounded-lg shadow-sm border border-slate-100 pr-2 w-full overflow-hidden">
+              {selectedSongName && (
+                <div className="w-11 h-11 shrink-0 border-r border-slate-100 bg-white shadow-sm overflow-hidden">
+                  <img 
+                    src={`https://pjsekai.com/?plugin=ref&page=${encodeURIComponent(selectedSongName)}&src=${encodeURIComponent(selectedSongName)}.jpg`}
+                    alt="jacket"
+                    className="w-full h-full object-cover"
+                    onError={(e) => (e.target as HTMLImageElement).style.display = 'none'}
+                  />
+                </div>
+              )}
               <input
                 list="song-list" value={selectedSongName} onChange={e => setSelectedSongName(e.target.value)}
-                placeholder="楽曲を選択..." className="w-full outline-none font-bold text-sm p-2 text-slate-800 placeholder:text-slate-400 bg-transparent"
+                placeholder="楽曲を選択..." className="w-full outline-none font-bold text-sm p-2 text-slate-800 placeholder:text-slate-400 bg-transparent px-3"
               />
               <datalist id="song-list">{songOptions.map(s => <option key={s} value={s} />)}</datalist>
             </div>
@@ -511,6 +521,14 @@ export default function RankMatchRecorder() {
 
                     <div className="pl-2 flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
+                        <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 border border-slate-100 bg-white shadow-sm">
+                          <img 
+                            src={`https://pjsekai.com/?plugin=ref&page=${encodeURIComponent(r.songName)}&src=${encodeURIComponent(r.songName)}.jpg`}
+                            alt="jacket"
+                            className="w-full h-full object-cover"
+                            onError={(e) => (e.target as HTMLImageElement).style.display = 'none'}
+                          />
+                        </div>
                         <span className={`text-[10px] font-black px-2 py-0.5 rounded text-white ${isWin ? "bg-rose-500" : isLose ? "bg-blue-500" : "bg-emerald-500"}`}>{r.result}</span>
                         <div className="font-black text-slate-800 truncate leading-tight tracking-tight text-sm">{r.songName}</div>
                       </div>

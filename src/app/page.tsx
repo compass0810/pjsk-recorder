@@ -40,14 +40,23 @@ const SongListItem = React.memo(({
     <button
       onClick={onClick}
       style={style}
-      className={`w-full text-left p-3 rounded-[1.25rem] transition-all duration-300 flex items-center gap-4 animate-fade-in-up
+      className={`w-full text-left p-3 rounded-[1.25rem] transition-all duration-300 flex items-center gap-3 animate-fade-in-up
         ${isSelected ? `bg-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] ring-2 ${diffRingColor} scale-100 relative z-10` : "bg-white/50 border border-slate-200/50 hover:bg-white/80 hover:shadow-md hover:scale-[1.01]"}
         ${isQuickAPMode ? "hover:ring-2 hover:ring-sky-400" : ""}
       `}
     >
-      <div className={`w-12 h-12 rounded-full flex flex-col items-center justify-center text-white shrink-0 shadow-sm ${diffColor}`}>
-        <div className="text-[10px] font-black leading-none opacity-90">{entry.diff}</div>
-        <div className="text-xl font-black leading-none mt-0.5">{entry.level}</div>
+      <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 border border-slate-200/50 bg-white">
+        <img 
+          src={`https://pjsekai.com/?plugin=ref&page=${encodeURIComponent(entry.song.楽曲名)}&src=${encodeURIComponent(entry.song.楽曲名)}.jpg`}
+          alt="jacket"
+          className="w-full h-full object-cover"
+          onError={(e) => (e.target as HTMLImageElement).style.display = 'none'}
+        />
+      </div>
+
+      <div className={`w-10 h-10 rounded-full flex flex-col items-center justify-center text-white shrink-0 shadow-sm ${diffColor}`}>
+        <div className="text-[8px] font-black leading-none opacity-90">{entry.diff}</div>
+        <div className="text-lg font-black leading-none mt-0.5">{entry.level}</div>
       </div>
 
       <div className="flex-1 min-w-0 pr-2">
@@ -420,9 +429,16 @@ export default function ResultRecorder() {
 
             {/* ヘッダー部 */}
             <div className="px-10 pt-10 pb-6 flex items-end gap-6 relative z-10">
-              <div className="w-24 h-24 bg-slate-100 rounded-[1.5rem] shadow-inner border-2 border-slate-200/50 flex flex-col items-center justify-center shrink-0 p-2 overflow-hidden relative">
+              <div className="w-24 h-24 bg-slate-100 rounded-[1.5rem] shadow-inner border-2 border-slate-200/50 flex flex-col items-center justify-center shrink-0 overflow-hidden relative group">
+                <img 
+                  src={`https://pjsekai.com/?plugin=ref&page=${encodeURIComponent(selectedEntry.song.楽曲名)}&src=${encodeURIComponent(selectedEntry.song.楽曲名)}.jpg`}
+                  alt={selectedEntry.song.楽曲名}
+                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
                 <div className="opacity-10 absolute inset-0 bg-stripes pointer-events-none" />
-                <span className={`font-black uppercase text-[10px] ${selectedEntry.diff === "EXP" ? "text-[var(--color-diff-expert)]" : selectedEntry.diff === "MAS" ? "text-[var(--color-diff-master)]" : "text-[var(--color-diff-append)]"}`}>jacket</span>
               </div>
               <div className="flex-1 pb-1">
                 <div className="flex items-center gap-3 mb-2">
