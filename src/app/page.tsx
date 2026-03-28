@@ -1,112 +1,123 @@
 "use client";
 
- ocean: {
-  /* 簡易的な状態管理 */
-}
 import { useState, useEffect } from "react";
+import Papa from "papaparse";
+
+// スプレッドシートの列名に完全に合わせる
+interface Song {
+  "No": string;
+  "楽曲名": string;
+  "X": string;      // EXPERTレベル
+  "M": string;      // MASTERレベル
+  "A": string;      // APPENDレベル
+  "コンボ(EXP)": string;
+  "コンボ(MAS)": string;
+  "コンボ(APD)": string;
+}
 
 export default function PjskRecorder() {
-  // 企画書に基づいた入力項目
-  const [songName, setSongName] = useState("マシンガンポエムドール");
-  const [totalNotes, setTotalNotes] = useState(3480); // 例として
+  const [songs, setSongs] = useState<Song[]>([]);
+  const [selectedSong, setSelectedSong] = useState<Song | null>(null);
+  const [difficulty, setDifficulty] = useState<"EXP" | "MAS" | "APD">("MAS");
+
+  // 判定数（企画書ロジック）
   const [great, setGreat] = useState(0);
   const [good, setGood] = useState(0);
   const [bad, setBad] = useState(0);
   const [miss, setMiss] = useState(0);
-  
-  // PERFECTの自動計算ロジック
-  const perfect = totalNotes - (great + good + bad + miss);
+
+  useEffect(() => {
+    // 【重要】ここに「ウェブに公開」で取得したCSVのURLを貼ってください
+    const sheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQrm3xeVZV5YSAjHFmRzmIOZwbDP14URG0LZFnnWp1bZNwgzKoQ0UwRPNXlNdESMb0jYMnHhmEsRHdG/pub?gid=536567596&single=true&output=csv";
+    
+    fetch(sheetUrl)
+      .then(res => res.text())
+      .then(csvData => {
+        const results = Papa.parse(csvData, { header: true });
+        // 空行を除外してセット
+        const validSongs = (results.data as Song[]).filter(s => s["楽曲名"]);
+        setSongs(validSongs);
+        if (validSongs.length > 0) setSelectedSong(validSongs[0]);
+      });
+  }, []);
+
+  // 選択中の難易度に基づいたデータを取得
+  const getDisplayData = () => {
+    if (!selectedSong) return { lv: "--", notes: 0 };
+    if (difficulty === "EXP") return { lv: selectedSong["X"], notes: Number(selectedSong["コンボ(EXP)"]) || 0 };
+    if (difficulty === "APD") return { lv: selectedSong["A"], notes: Number(selectedSong["コンボ(APD)"]) || 0 };
+    return { lv: selectedSong["M"], notes: Number(selectedSong["コンボ(MAS)"]) || 0 };
+  };
+
+  const { lv, notes } = getDisplayData();
+  const perfect = notes - (great + good + bad + miss);
 
   return (
-    <div className="flex h-screen bg-pjsk-bg font-sans text-slate-800">
-      {/* --- サイドメニュー --- */}
-      <aside className="w-64 bg-pjsk-dark text-white flex flex-col">
-        <div className="p-6 text-xl font-bold border-b border-slate-700">
-          MENU
+    <div className="flex h-screen bg-slate-100">
+      {/* サイドバー (省略可) */}
+      <aside className="w-64 bg-slate-900 text-white p-6">
+        <h2 className="text-xl font-bold mb-6">MENU</h2>
+        <div className="space-y-2">
+          <div className="p-3 bg-cyan-500/20 text-cyan-400 border border-cyan-500 rounded">リザルト記録</div>
         </div>
-        <nav className="flex-1 p-4 space-y-2">
-          <button className="w-full text-left p-3 bg-pjsk-main/20 text-pjsk-main rounded-lg border border-pjsk-main">
-            リザルト記録
-          </button>
-          <button className="w-full text-left p-3 hover:bg-white/10 rounded-lg transition">
-            ランクマレコーダー
-          </button>
-          <button className="w-full text-left p-3 hover:bg-white/10 rounded-lg transition text-slate-400">
-            譜面メーカー情報 (仮)
-          </button>
-          <button className="w-full text-left p-3 hover:bg-white/10 rounded-lg transition">
-            アップデートログ
-          </button>
-        </nav>
-        <div className="p-4 text-xs text-slate-500">v 0.0.0 (企画書段階)</div>
       </aside>
 
-      {/* --- メインコンテンツ --- */}
-      <main className="flex-1 overflow-y-auto p-8">
-        <header className="mb-8 flex justify-between items-center">
-          <h1 className="text-2xl font-bold border-l-4 border-pjsk-main pl-4">
-            プロセカレコーダー
-          </h1>
-          <div className="bg-white px-4 py-2 rounded-full shadow-sm text-sm">
-            2026.03.28 記録中
-          </div>
-        </header>
-
-        {/* リザルト入力カード */}
-        <div className="max-w-2xl bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200">
-          <div className="bg-pjsk-purple p-4 text-white flex justify-between items-center">
-            <span className="font-bold">MASTER Lv.35</span>
-            <span className="text-sm opacity-80">リザルト入力</span>
+      <main className="flex-1 p-8 overflow-y-auto">
+        <div className="max-w-2xl mx-auto bg-white rounded-3xl shadow-xl overflow-hidden">
+          {/* ヘッダー：難易度で色を変える */}
+          <div className={`p-4 text-white flex justify-between ${
+            difficulty === "MAS" ? "bg-purple-600" : difficulty === "APD" ? "bg-pink-500" : "bg-red-500"
+          }`}>
+            <span className="font-bold">{difficulty} Lv.{lv}</span>
+            <select 
+              className="bg-black/20 outline-none rounded"
+              value={difficulty}
+              onChange={(e) => setDifficulty(e.target.value as any)}
+            >
+              <option value="EXP">EXPERT</option>
+              <option value="MAS">MASTER</option>
+              <option value="APD">APPEND</option>
+            </select>
           </div>
 
           <div className="p-8">
-            <div className="mb-6 text-center">
-              <input 
-                className="text-2xl font-bold text-center w-full border-b-2 border-slate-100 focus:border-pjsk-main outline-none pb-2"
-                value={songName}
-                onChange={(e) => setSongName(e.target.value)}
-              />
-            </div>
+            {/* 楽曲選択ドロップダウン */}
+            <select 
+              className="w-full text-2xl font-bold border-b-2 mb-8 outline-none"
+              onChange={(e) => setSelectedSong(songs.find(s => s["楽曲名"] === e.target.value) || null)}
+            >
+              {songs.map(song => (
+                <option key={song["No"]} value={song["楽曲名"]}>{song["楽曲名"]}</option>
+              ))}
+            </select>
 
             <div className="grid grid-cols-2 gap-8">
-              {/* 左側：判定入力 */}
               <div className="space-y-4">
-                <div className="flex items-center justify-between border-b pb-1">
-                  <span className="text-orange-400 font-bold">PERFECT</span>
-                  <span className="text-xl font-mono">{perfect}</span>
+                <div className="flex justify-between border-b text-orange-500 font-bold">
+                  <span>PERFECT</span><span>{perfect}</span>
                 </div>
-                <div className="flex items-center justify-between border-b pb-1">
-                  <span className="text-pink-400 font-bold">GREAT</span>
-                  <input type="number" className="w-20 text-right outline-none" value={great} onChange={e => setGreat(Number(e.target.value))} />
-                </div>
-                <div className="flex items-center justify-between border-b pb-1">
-                  <span className="text-green-400 font-bold">GOOD</span>
-                  <input type="number" className="w-20 text-right outline-none" value={good} onChange={e => setGood(Number(e.target.value))} />
-                </div>
-                <div className="flex items-center justify-between border-b pb-1">
-                  <span className="text-blue-400 font-bold">BAD</span>
-                  <input type="number" className="w-20 text-right outline-none" value={bad} onChange={e => setBad(Number(e.target.value))} />
-                </div>
-                <div className="flex items-center justify-between border-b pb-1">
-                  <span className="text-gray-400 font-bold">MISS</span>
-                  <input type="number" className="w-20 text-right outline-none" value={miss} onChange={e => setMiss(Number(e.target.value))} />
-                </div>
+                {/* 各入力欄 (GREAT, GOOD, etc...) */}
+                {[["GREAT", "text-pink-400", great, setGreat], 
+                  ["GOOD", "text-green-400", good, setGood], 
+                  ["BAD", "text-blue-400", bad, setBad], 
+                  ["MISS", "text-gray-400", miss, setMiss]].map(([label, color, val, setter]: any) => (
+                  <div key={label} className="flex justify-between border-b">
+                    <span className={`${color} font-bold`}>{label}</span>
+                    <input 
+                      type="number" 
+                      className="w-16 text-right outline-none" 
+                      value={val} 
+                      onChange={e => setter(Number(e.target.value))}
+                    />
+                  </div>
+                ))}
               </div>
 
-              {/* 右側：スコア・達成率（企画書イメージ） */}
-              <div className="flex flex-col justify-center items-center bg-slate-50 rounded-2xl p-4">
-                <div className="text-sm text-slate-500 mb-1">SCORE RATE</div>
-                <div className="text-4xl font-black text-pjsk-main">99.95<span className="text-xl">%</span></div>
-                <div className="mt-4 flex gap-2">
-                  <span className="px-2 py-1 bg-orange-100 text-orange-600 text-xs font-bold rounded">FC</span>
-                  <span className="px-2 py-1 bg-slate-200 text-slate-400 text-xs font-bold rounded">AP</span>
-                </div>
+              <div className="bg-slate-50 rounded-2xl p-6 flex flex-col items-center justify-center">
+                <div className="text-slate-400 text-sm">TOTAL NOTES</div>
+                <div className="text-3xl font-mono">{notes}</div>
               </div>
             </div>
-
-            <button className="w-full mt-8 bg-pjsk-main hover:bg-cyan-400 text-pjsk-dark font-bold py-4 rounded-2xl shadow-lg transition-transform active:scale-95">
-              記録する
-            </button>
           </div>
         </div>
       </main>
