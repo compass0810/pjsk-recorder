@@ -44,51 +44,41 @@ export default function MaintenanceGuard({ children }: { children: React.ReactNo
     const isEmergency = maintenance.type === "emergency";
     
     return (
-      <div className="fixed inset-0 z-[9999] bg-slate-50 flex items-center justify-center p-6 lg:p-12 overflow-hidden">
-        {/* 背景の装飾 */}
-        <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
-          <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-cyan-200/40 blur-[120px] rounded-full" />
-          <div className="absolute -bottom-[10%] -right-[10%] w-[40%] h-[40%] bg-blue-200/40 blur-[120px] rounded-full" />
-        </div>
-        
-        <div className="max-w-2xl w-full bg-white/70 backdrop-blur-3xl border border-white rounded-[3rem] p-10 lg:p-16 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.08)] flex flex-col items-center text-center relative animate-fade-in-up">
+      <div className="fixed inset-0 z-[9999] bg-slate-50/80 backdrop-blur-sm flex items-center justify-center p-6">
+        <div className="max-w-sm w-full bg-white rounded-[2.5rem] p-8 shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-slate-100 flex flex-col items-center text-center animate-fade-in-up">
           
-          {/* アイコン部分 (タイプによって色を変更) */}
-          <div className={`w-24 h-24 rounded-[2.5rem] flex items-center justify-center text-white text-5xl mb-10 shadow-2xl transition-all duration-500 animate-pulse ${
-            isEmergency ? "bg-rose-500 shadow-rose-200" : "bg-cyan-500 shadow-cyan-200"
+          <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-white text-3xl mb-6 shadow-lg ${
+            isEmergency ? "bg-rose-400 shadow-rose-100" : "bg-cyan-400 shadow-cyan-100"
           }`}>
             ⚠️
           </div>
           
-          <h1 className="text-4xl lg:text-5xl font-black text-slate-800 mb-6 tracking-tighter uppercase leading-tight">
-            System <br />
-            <span className={isEmergency ? "text-rose-500" : "text-cyan-600"}>Maintenance</span>
+          <h1 className="text-2xl font-black text-slate-800 mb-2 tracking-tighter">
+            {isEmergency ? "緊急メンテナンス中" : "メンテナンス中"}
           </h1>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6">System Maintenance</p>
           
-          <div className="bg-slate-50/50 border border-white rounded-[2rem] p-8 mb-10 w-full text-left shadow-inner">
-            <h2 className={`font-black text-[10px] uppercase tracking-widest mb-4 ${isEmergency ? "text-rose-400" : "text-cyan-500"}`}>
-              {isEmergency ? "Emergency Maintenance" : "Regular Maintenance"}
-            </h2>
-            <p className="text-slate-600 font-bold text-lg leading-relaxed mb-6">
-              {maintenance.reason || "現在、システムメンテナンスを行っております。"}
+          <div className="bg-slate-50 rounded-2xl p-6 mb-8 w-full text-left">
+            <p className="text-slate-600 font-bold text-sm leading-relaxed mb-4">
+              {maintenance.reason || "現在、メンテナンスを行っております。ご不便をおかけして申し訳ありません。"}
             </p>
             
-            <div className="grid grid-cols-2 gap-6 pt-6 border-t border-white text-[10px]">
-               <div>
-                  <span className="text-slate-400 font-black block mb-1 uppercase tracking-tighter">Start Time</span>
-                  <span className="text-slate-600 font-bold text-sm tracking-widest">{maintenance.start || "---"}</span>
+            <div className="flex flex-col gap-3 pt-4 border-t border-slate-100 text-[9px] font-bold">
+               <div className="flex justify-between">
+                  <span className="text-slate-400 uppercase tracking-widest">開始時刻</span>
+                  <span className="text-slate-600">{maintenance.start || "---"}</span>
                </div>
-               <div>
-                  <span className="text-slate-400 font-black block mb-1 uppercase tracking-tighter">Expected End</span>
-                  <span className="text-slate-600 font-bold text-sm tracking-widest">{maintenance.end || "順次復旧予定"}</span>
+               <div className="flex justify-between">
+                  <span className="text-slate-400 uppercase tracking-widest">終了予定</span>
+                  <span className="text-slate-600 font-black">{maintenance.end || "順次復旧予定"}</span>
                </div>
             </div>
           </div>
           
-          <p className="text-slate-400 font-bold text-xs">
-            ご不便をおかけしますが、しばらくお待ちください。<br/>
-            © 2026 PJSK Recorder Team
-          </p>
+          <div className="space-y-1">
+            <p className="text-slate-400 font-bold text-[10px]">しばらく経ってから再度お試しください</p>
+            <p className="text-slate-300 font-bold text-[8px]">© 2026 PJSK Recorder Team</p>
+          </div>
         </div>
       </div>
     );
