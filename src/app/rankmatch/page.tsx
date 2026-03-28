@@ -13,8 +13,8 @@ export default function RankMatchRecorder() {
   const [selectedDiff, setSelectedDiff] = useState<Difficulty>("MAS");
   const [rivalName, setRivalName] = useState("");
 
-  // youのclearStatusをboolean(isClear)にし、自動判定時にこれを加味してFAILEDにするかを決める。
-  const [you, setYou] = useState({ gr: 0, go: 0, b: 0, m: 0, isClear: true });
+  // youのライフ0判定（isZeroLife）を管理。trueの場合FAILEDとなり-0.3ptのペナルティ。
+  const [you, setYou] = useState({ gr: 0, go: 0, b: 0, m: 0, isZeroLife: false });
   const [rival, setRival] = useState({ gr: 0, go: 0, b: 0, m: 0 });
 
   const [toastMessage, setToastMessage] = useState("");
@@ -66,7 +66,7 @@ export default function RankMatchRecorder() {
 
     let pClearType: "AP" | "FC" | "CLEAR" | "FAILED" = "CLEAR";
 
-    if (!you.isClear) {
+    if (you.isZeroLife) {
       pClearType = "FAILED";
       pointChange -= 0.3;
     } else {
@@ -109,7 +109,7 @@ export default function RankMatchRecorder() {
     setToastMessage("戦績を記録しました！");
     setTimeout(() => setToastMessage(""), 3000);
 
-    setYou({ gr: 0, go: 0, b: 0, m: 0, isClear: true });
+    setYou({ gr: 0, go: 0, b: 0, m: 0, isZeroLife: false });
     setRival({ gr: 0, go: 0, b: 0, m: 0 });
     setRivalName("");
   };
@@ -221,7 +221,7 @@ export default function RankMatchRecorder() {
               <div className="flex-1 bg-gradient-to-br from-rose-50/30 to-white rounded-[1rem] p-4 border border-rose-100 relative pt-6">
                 <div className="absolute -top-3 left-4 bg-rose-500 text-white px-4 py-0.5 text-xs rounded-full font-black tracking-widest shadow-sm">YOU</div>
 
-                <div className="grid grid-cols-4 gap-2 mt-2">
+                <div className="grid grid-cols-2 gap-2 mt-2">
                   {[
                     { key: "gr", label: "GR(-1)", classes: { border: "border-pink-200 focus-within:ring-pink-300", text: "text-pink-400", bg: "bg-pink-100" } },
                     { key: "go", label: "GO(-2)", classes: { border: "border-blue-200 focus-within:ring-blue-300", text: "text-blue-400", bg: "bg-blue-100" } },
@@ -238,8 +238,8 @@ export default function RankMatchRecorder() {
                 </div>
 
                 <label className="flex items-center gap-2 mt-4 ml-1 cursor-pointer w-fit select-none">
-                  <input type="checkbox" checked={you.isClear} onChange={e => setYou({ ...you, isClear: e.target.checked })} className="w-5 h-5 rounded text-rose-500 focus:ring-rose-400 cursor-pointer" />
-                  <span className="text-sm font-black text-slate-600 uppercase">CLEAR (FAILED判定用)</span>
+                  <input type="checkbox" checked={you.isZeroLife} onChange={e => setYou({ ...you, isZeroLife: e.target.checked })} className="w-5 h-5 rounded text-rose-500 focus:ring-rose-400 cursor-pointer" />
+                  <span className="text-sm font-black text-slate-600 uppercase">ライフ０ (-0.3pt)</span>
                 </label>
               </div>
 
@@ -247,7 +247,7 @@ export default function RankMatchRecorder() {
               <div className="flex-1 bg-gradient-to-br from-blue-50/30 to-white rounded-[1rem] p-4 border border-blue-100 relative pt-6 mb-4 sm:mb-0">
                 <div className="absolute -top-3 right-4 bg-blue-500 text-white px-4 py-0.5 text-xs rounded-full font-black tracking-widest shadow-sm uppercase">Rival</div>
 
-                <div className="grid grid-cols-4 gap-2 mt-2 h-[80px]">
+                <div className="grid grid-cols-2 gap-2 mt-2">
                   {[
                     { key: "gr", label: "GR(-1)", classes: { border: "border-pink-200 focus-within:ring-pink-300", text: "text-pink-400", bg: "bg-pink-100" } },
                     { key: "go", label: "GO(-2)", classes: { border: "border-blue-200 focus-within:ring-blue-300", text: "text-blue-400", bg: "bg-blue-100" } },
