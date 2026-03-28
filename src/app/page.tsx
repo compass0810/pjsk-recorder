@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { fetchSongs } from "@/lib/api";
 import { db } from "@/lib/db";
 import { supabase } from "@/lib/supabase";
@@ -11,6 +11,66 @@ interface ListEntry {
   diff: Difficulty;
   level: string;
 }
+
+// パフォーマンス向上のためのメモ化されたリストアイテム
+const SongListItem = React.memo(({ 
+  entry, 
+  saved, 
+  isSelected, 
+  isQuickAPMode, 
+  onClick, 
+  calculateAccuracy, 
+  getNotes,
+  style 
+}: { 
+  entry: ListEntry, 
+  saved: PlayResult | undefined, 
+  isSelected: boolean, 
+  isQuickAPMode: boolean,
+  onClick: () => void,
+  calculateAccuracy: (r: any, total: number) => string | null,
+  getNotes: (s: Song, d: Difficulty) => number,
+  style: React.CSSProperties
+}) => {
+  const diffColor = entry.diff === "EXP" ? "bg-[var(--color-diff-expert)]" : entry.diff === "MAS" ? "bg-[var(--color-diff-master)]" : "bg-[var(--color-diff-append)]";
+  const diffRingColor = entry.diff === "EXP" ? "ring-[var(--color-diff-expert)]" : entry.diff === "MAS" ? "ring-[var(--color-diff-master)]" : "ring-[var(--color-diff-append)]";
+  const diffTextColor = entry.diff === "EXP" ? "text-[var(--color-diff-expert)]" : entry.diff === "MAS" ? "text-[var(--color-diff-master)]" : "text-[var(--color-diff-append)]";
+
+  return (
+    <button
+      onClick={onClick}
+      style={style}
+      className={`w-full text-left p-3 rounded-[1.25rem] transition-all duration-300 flex items-center gap-4 animate-fade-in-up
+        ${isSelected ? `bg-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] ring-2 ${diffRingColor} scale-100 relative z-10` : "bg-white/50 border border-slate-200/50 hover:bg-white/80 hover:shadow-md hover:scale-[1.01]"}
+        ${isQuickAPMode ? "hover:ring-2 hover:ring-sky-400" : ""}
+      `}
+    >
+      <div className={`w-12 h-12 rounded-full flex flex-col items-center justify-center text-white shrink-0 shadow-sm ${diffColor}`}>
+        <div className="text-[10px] font-black leading-none opacity-90">{entry.diff}</div>
+        <div className="text-xl font-black leading-none mt-0.5">{entry.level}</div>
+      </div>
+
+      <div className="flex-1 min-w-0 pr-2">
+        <div className={`text-[15px] font-black truncate leading-tight ${isSelected ? "text-slate-900" : "text-slate-700"}`}>{entry.song.楽曲名}</div>
+        {!saved ? (
+          <div className="text-xs font-bold text-slate-400 mt-1">未プレイ</div>
+        ) : (
+          <div className="flex items-center gap-2 mt-1">
+            {saved.clearType !== "CLEAR" && (
+              <span className={`text-[10px] font-black px-1.5 py-0.5 rounded border leading-none uppercase
+                 ${saved.clearType === "AP" ? "border-sky-400 text-sky-500 bg-sky-50" : saved.clearType === "FC" ? "border-pink-400 text-pink-500 bg-pink-50" : "border-slate-300 text-slate-400"}`}>
+                {saved.clearType}
+              </span>
+            )}
+            <span className={`text-xs font-black font-mono ${isSelected ? diffTextColor : "text-slate-500"}`}>{parseFloat(saved.accuracy).toFixed(4)}%</span>
+          </div>
+        )}
+      </div>
+    </button>
+  );
+});
+
+SongListItem.displayName = "SongListItem";
 
 export default function ResultRecorder() {
   const [songs, setSongs] = useState<Song[]>([]);
@@ -29,6 +89,7 @@ export default function ResultRecorder() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   const [inputs, setInputs] = useState({ great: 0, good: 0, bad: 0, miss: 0 });
+  
   // ローディング / 一括処理
   const [isLoading, setIsLoading] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState({ loaded: 0, total: 0 });
@@ -42,7 +103,6 @@ export default function ResultRecorder() {
     (async () => {
       setIsLoading(true);
       
-      // Auth 状態確認
       const { data: { user } } = await supabase.auth.getUser();
       if (isMounted) setIsLoggedIn(!!user);
 
@@ -78,25 +138,20 @@ export default function ResultRecorder() {
       const resultKey = `${e.song.No}-${e.diff}`;
       const saved = results[resultKey];
 
-      // 検索フィルタ
       if (searchQuery && !e.song.楽曲名.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-      // 難易度フィルタ
       if (filterDiff !== "ALL" && e.diff !== filterDiff) return false;
-      // レベルフィルタ
       if (filterLevel !== "ALL" && e.level !== filterLevel) return false;
-      // クリア状況フィルタ
       if (filterClearType !== "ALL") {
         if (filterClearType === "NOCLEAR" && saved) return false;
         if (filterClearType !== "NOCLEAR" && (!saved || saved.clearType !== filterClearType)) return false;
       }
       return true;
     }).sort((a, b) => {
-      // 達成率計算用ヘルパー
       const getAcc = (entry: ListEntry) => {
         const resultKey = `${entry.song.No}-${entry.diff}`;
         const r = results[resultKey];
         const ttl = Number(String(entry.song[`コンボ\n(${entry.diff})` as keyof Song] || "0").replace(/,/g, ""));
-        if (!r || ttl === 0) return -1; // 未プレイ
+        if (!r || ttl === 0) return -1;
         return parseFloat(r.accuracy);
       };
 
@@ -122,15 +177,15 @@ export default function ResultRecorder() {
       if (s.M && s.M !== "-") levels.add(s.M);
       if (s.A && s.A !== "-") levels.add(s.A);
     });
-    return Array.from(levels).sort((a, b) => Number(b) - Number(a)); // 降順
+    return Array.from(levels).sort((a, b) => Number(b) - Number(a));
   }, [songs]);
 
-  const getNotes = (song: Song, diff: Difficulty) => {
+  const getNotes = useCallback((song: Song, diff: Difficulty) => {
     const key = `コンボ\n(${diff})` as keyof Song;
     const val = song[key];
     if (!val) return 0;
     return Number(String(val).replace(/,/g, "")) || 0;
-  };
+  }, []);
 
   useEffect(() => {
     if (selectedEntry) {
@@ -150,12 +205,12 @@ export default function ResultRecorder() {
     return Math.max(0, totalNotes - (inputs.great + inputs.good + inputs.bad + inputs.miss));
   };
 
-  const calculateAccuracy = (r: { perfect: number, great: number, good: number, bad: number, miss: number } | undefined, total: number) => {
+  const calculateAccuracy = useCallback((r: any, total: number) => {
     if (!r || total === 0) return null;
     const score = (r.perfect * 3) + (r.great * 2) + (r.good * 1);
     const pct = (score / (total * 3)) * 100;
     return pct.toFixed(4);
-  };
+  }, []);
 
   const handleSave = async () => {
     if (!selectedEntry) return;
@@ -190,7 +245,7 @@ export default function ResultRecorder() {
     setTimeout(() => setToastMessage(""), 3000);
   };
 
-  const handleQuickAP = async (entry: ListEntry) => {
+  const handleQuickAP = useCallback(async (entry: ListEntry) => {
     if (!isLoggedIn) {
        setToastMessage("失敗：ログインが必要です");
        setTimeout(() => setToastMessage(""), 3000);
@@ -213,7 +268,7 @@ export default function ResultRecorder() {
     setResults(prev => ({ ...prev, [resultKey]: newResult }));
     setToastMessage(`${entry.song.楽曲名} を AP で保存しました！`);
     setTimeout(() => setToastMessage(""), 3000);
-  };
+  }, [isLoggedIn, getNotes]);
 
   const handleBatchAP = async () => {
     if (!isLoggedIn || listEntries.length === 0) return;
@@ -235,7 +290,6 @@ export default function ResultRecorder() {
 
     await db.playResults.upsertMany(batchData);
 
-    // ローカルステート一括更新
     const newResults = { ...results };
     batchData.forEach(r => {
       newResults[`${r.songNo}-${r.difficulty}`] = r;
@@ -268,7 +322,6 @@ export default function ResultRecorder() {
 
   return (
     <div className="flex h-full p-6 lg:p-8 gap-6 absolute inset-0 overflow-hidden">
-
       {/* Toast */}
       <div className={`fixed top-6 right-6 z-50 transition-all duration-500 transform ${toastMessage ? "translate-x-0 opacity-100" : "translate-x-8 opacity-0 pointer-events-none"}`}>
         <div className="bg-white/90 backdrop-blur border-l-4 border-cyan-400 p-4 rounded-xl shadow-2xl flex items-center gap-4">
@@ -290,7 +343,7 @@ export default function ResultRecorder() {
                 `}
                 title="リストをクリックするだけでAP登録するモード"
               >
-                Quick AP ON
+                Quick AP {isQuickAPMode ? "ON" : "OFF"}
               </button>
               <button 
                 onClick={() => setIsBatchModalOpen(true)}
@@ -330,50 +383,25 @@ export default function ResultRecorder() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-3 space-y-2">
+        <div className="flex-1 overflow-y-auto p-3 space-y-2" style={{ contain: 'content' }}>
           {listEntries.length === 0 && <p className="text-center text-slate-400 mt-10 font-bold">見つかりませんでした</p>}
           {listEntries.map((entry, idx) => {
             const resultKey = `${entry.song.No}-${entry.diff}`;
             const saved = results[resultKey];
             const isSelected = selectedEntry?.song.No === entry.song.No && selectedEntry?.diff === entry.diff;
 
-            const diffColor = entry.diff === "EXP" ? "bg-[var(--color-diff-expert)]" : entry.diff === "MAS" ? "bg-[var(--color-diff-master)]" : "bg-[var(--color-diff-append)]";
-            const diffRingColor = entry.diff === "EXP" ? "ring-[var(--color-diff-expert)]" : entry.diff === "MAS" ? "ring-[var(--color-diff-master)]" : "ring-[var(--color-diff-append)]";
-            const diffTextColor = entry.diff === "EXP" ? "text-[var(--color-diff-expert)]" : entry.diff === "MAS" ? "text-[var(--color-diff-master)]" : "text-[var(--color-diff-append)]";
-
             return (
-              <button
+              <SongListItem 
                 key={resultKey}
+                entry={entry}
+                saved={saved}
+                isSelected={isSelected}
+                isQuickAPMode={isQuickAPMode}
                 onClick={() => isQuickAPMode ? handleQuickAP(entry) : setSelectedEntry(entry)}
+                calculateAccuracy={calculateAccuracy}
+                getNotes={getNotes}
                 style={{ animationDelay: `${idx * 0.03}s` }}
-                className={`w-full text-left p-3 rounded-[1.25rem] transition-all duration-300 flex items-center gap-4 animate-fade-in-up
-                  ${isSelected ? `bg-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] ring-2 ${diffRingColor} scale-100 relative z-10` : "bg-white/50 border border-slate-200/50 hover:bg-white/80 hover:shadow-md hover:scale-[1.01]"}
-                  ${isQuickAPMode ? "hover:ring-2 hover:ring-sky-400" : ""}
-                `}
-              >
-                {/* 難易度とレベルの丸形バッジ */}
-                <div className={`w-12 h-12 rounded-full flex flex-col items-center justify-center text-white shrink-0 shadow-sm ${diffColor}`}>
-                  <div className="text-[10px] font-black leading-none opacity-90">{entry.diff}</div>
-                  <div className="text-xl font-black leading-none mt-0.5">{entry.level}</div>
-                </div>
-
-                <div className="flex-1 min-w-0 pr-2">
-                  <div className={`text-[15px] font-black truncate leading-tight ${isSelected ? "text-slate-900" : "text-slate-700"}`}>{entry.song.楽曲名}</div>
-                  {!saved ? (
-                    <div className="text-xs font-bold text-slate-400 mt-1">未プレイ</div>
-                  ) : (
-                    <div className="flex items-center gap-2 mt-1">
-                      {saved.clearType !== "CLEAR" && (
-                        <span className={`text-[10px] font-black px-1.5 py-0.5 rounded border leading-none uppercase
-                           ${saved.clearType === "AP" ? "border-sky-400 text-sky-500 bg-sky-50" : saved.clearType === "FC" ? "border-pink-400 text-pink-500 bg-pink-50" : "border-slate-300 text-slate-400"}`}>
-                          {saved.clearType}
-                        </span>
-                      )}
-                      <span className={`text-xs font-black font-mono ${isSelected ? diffTextColor : "text-slate-500"}`}>{parseFloat(saved.accuracy).toFixed(4)}%</span>
-                    </div>
-                  )}
-                </div>
-              </button>
+              />
             );
           })}
         </div>
@@ -387,8 +415,6 @@ export default function ResultRecorder() {
           </div>
         ) : (
           <div className="w-full max-w-2xl bg-white/85 backdrop-blur-2xl rounded-[2.5rem] shadow-2xl border-2 border-white/80 overflow-hidden flex flex-col h-full animate-fade-in-up relative">
-
-            {/* 動的な背景装飾 */}
             <div className={`absolute -top-32 -right-32 w-64 h-64 rounded-full blur-3xl opacity-20 pointer-events-none transition-colors duration-1000
               ${selectedEntry.diff === "EXP" ? "bg-rose-500" : selectedEntry.diff === "MAS" ? "bg-purple-500" : "bg-fuchsia-500"}`} />
 
@@ -417,7 +443,6 @@ export default function ResultRecorder() {
             {/* 入力エリア */}
             <div className="flex-1 px-10 pb-10 flex flex-col justify-center relative z-10">
               <div className="bg-slate-50/50 rounded-[2rem] p-8 border border-white/60 shadow-inner flex flex-col h-full">
-
                 <div className="flex justify-between items-center mb-8 px-8">
                   <div className="flex-1 text-center">
                     <div className="text-orange-400/80 font-black text-sm tracking-widest mb-1">PERFECT</div>
@@ -462,10 +487,8 @@ export default function ResultRecorder() {
                     RECORD SAVE
                   </button>
                 </div>
-
               </div>
             </div>
-
           </div>
         )}
       </div>
@@ -473,7 +496,7 @@ export default function ResultRecorder() {
       {/* 一括 AP 確認モーダル */}
       {isBatchModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in-up">
-          <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden flex flex-col border border-white/50">
+          <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-md overflow-hidden flex flex-col border border-white/50">
             <div className="p-8 text-center">
               <div className="w-20 h-20 bg-sky-100 text-sky-500 rounded-full flex items-center justify-center mx-auto mb-6">
                 <span className="text-4xl font-black italic">AP</span>
@@ -491,27 +514,14 @@ export default function ResultRecorder() {
             </div>
             
             <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-4">
-              <button 
-                onClick={() => setIsBatchModalOpen(false)}
-                disabled={isProcessingBatch}
-                className="flex-1 py-4 rounded-2xl font-black text-slate-500 bg-white border border-slate-200 hover:bg-slate-100 transition-all disabled:opacity-50"
-              >
-                CANCEL
-              </button>
-              <button 
-                onClick={handleBatchAP}
-                disabled={isProcessingBatch}
-                className="flex-1 py-4 rounded-2xl font-black text-white bg-sky-500 hover:bg-sky-600 shadow-lg shadow-sky-200 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {isProcessingBatch ? (
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                ) : "EXECUTE"}
+              <button onClick={() => setIsBatchModalOpen(false)} disabled={isProcessingBatch} className="flex-1 py-4 rounded-2xl font-black text-slate-500 bg-white border border-slate-200 hover:bg-slate-100 transition-all disabled:opacity-50">CANCEL</button>
+              <button onClick={handleBatchAP} disabled={isProcessingBatch} className="flex-1 py-4 rounded-2xl font-black text-white bg-sky-500 hover:bg-sky-600 shadow-lg shadow-sky-200 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                {isProcessingBatch ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : "EXECUTE"}
               </button>
             </div>
           </div>
         </div>
       )}
-
     </div>
   );
 }
