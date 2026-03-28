@@ -45,13 +45,13 @@ export default function RankMatchRecorder() {
 
 
   // 失点(Penalty)計算: GREAT=1, GOOD=2, BAD=3, MISS=3
-  const calcPenalty = (r: { gr: number, go: number, b: number, m: number }) => {
-    return (r.gr * 1) + (r.go * 2) + (r.b * 3) + (r.m * 3);
+  const calcPenalty = (gr: number, go: number, b: number, m: number) => {
+    return (gr * 1) + (go * 2) + (b * 3) + (m * 3);
   };
 
   const calcResult = () => {
-    const yPenalty = calcPenalty(you);
-    const rPenalty = calcPenalty(rival);
+    const yPenalty = calcPenalty(you.gr, you.go, you.b, you.m);
+    const rPenalty = calcPenalty(rival.gr, rival.go, rival.b, rival.m);
 
     let result: "WIN" | "LOSE" | "DRAW" = "DRAW";
     let pointChange = 0;
@@ -282,8 +282,8 @@ export default function RankMatchRecorder() {
             {records.length === 0 && <p className="text-center text-slate-400 mt-10 font-bold text-sm">No Records</p>}
             {records.map(r => {
               // 古い履歴等のため、一応Penaltyロジックで計算しなおす
-              const yPen = calcPenalty(r.you);
-              const rPen = calcPenalty(r.rival);
+              const yPen = calcPenalty(r.you.great, r.you.good, r.you.bad, r.you.miss);
+              const rPen = calcPenalty(r.rival.great, r.rival.good, r.rival.bad, r.rival.miss);
               const isWin = r.result === "WIN";
               const isLose = r.result === "LOSE";
 
