@@ -117,6 +117,7 @@ export const db = {
           clearType: r.you_clear_type as any
         },
         rival: {
+          perfect: r.rival_perfect || 0,
           great: r.rival_great,
           good: r.rival_good,
           bad: r.rival_bad,
@@ -144,6 +145,7 @@ export const db = {
         you_bad: r.you.bad,
         you_miss: r.you.miss,
         you_clear_type: r.you.clearType,
+        rival_perfect: r.rival.perfect || 0,
         rival_great: r.rival.great,
         rival_good: r.rival.good,
         rival_bad: r.rival.bad,

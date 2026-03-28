@@ -74,6 +74,7 @@ CREATE TABLE public.rankmatch_records (
   you_clear_type text NOT NULL,
   
   -- 相手側
+  rival_perfect integer NOT NULL DEFAULT 0,
   rival_great integer NOT NULL DEFAULT 0,
   rival_good integer NOT NULL DEFAULT 0,
   rival_bad integer NOT NULL DEFAULT 0,

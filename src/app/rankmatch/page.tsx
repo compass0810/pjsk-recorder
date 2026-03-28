@@ -174,6 +174,16 @@ export default function RankMatchRecorder() {
       return;
     }
 
+    const selectedSong = songs.find(s => s.楽曲名 === selectedSongName);
+    const getNotes = (song: Song | undefined, diff: Difficulty) => {
+      if (!song) return 0;
+      const key = `コンボ\n(${diff})` as keyof Song;
+      const val = song[key];
+      if (!val) return 0;
+      return Number(String(val).replace(/,/g, "")) || 0;
+    };
+    const songNotes = getNotes(selectedSong, selectedDiff);
+
     const newRecord: RankMatchRecord = {
       id: Date.now().toString(),
       timestamp: Date.now(),
@@ -181,8 +191,8 @@ export default function RankMatchRecorder() {
       difficulty: selectedDiff,
       level: currentLevel as string,
       rivalName: rivalName || "名無し",
-      you: { perfect: Math.max(0, 1000 - (you.gr+you.go+you.b+you.m)), great: you.gr, good: you.go, bad: you.b, miss: you.m, clearType: pClearType },
-      rival: { great: rival.gr, good: rival.go, bad: rival.b, miss: rival.m, clearType: rClearType },
+      you: { perfect: Math.max(0, songNotes - (you.gr + you.go + you.b + you.m)), great: you.gr, good: you.go, bad: you.b, miss: you.m, clearType: pClearType },
+      rival: { perfect: Math.max(0, songNotes - (rival.gr + rival.go + rival.b + rival.m)), great: rival.gr, good: rival.go, bad: rival.b, miss: rival.m, clearType: rClearType },
       result: currentResult,
       pointChange: currentPointChange
     };

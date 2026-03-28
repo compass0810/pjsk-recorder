@@ -31,8 +31,8 @@ export interface RankMatchRecord {
   difficulty: Difficulty;
   level: string;
   rivalName: string;
-  you: { great: number; good: number; bad: number; miss: number; clearType: "CLEAR" | "FC" | "AP" | "FAILED" };
-  rival: { great: number; good: number; bad: number; miss: number; clearType: "CLEAR" | "FC" | "AP" | "FAILED" };
+  you: { perfect: number; great: number; good: number; bad: number; miss: number; clearType: "CLEAR" | "FC" | "AP" | "FAILED" };
+  rival: { perfect: number; great: number; good: number; bad: number; miss: number; clearType: "CLEAR" | "FC" | "AP" | "FAILED" };
   result: "WIN" | "LOSE" | "DRAW";
   pointChange: number; // +1.0, -1.0, +1.2 など
 }
