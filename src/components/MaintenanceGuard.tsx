@@ -41,40 +41,53 @@ export default function MaintenanceGuard({ children }: { children: React.ReactNo
   if (isLoading) return <>{children}</>;
 
   if (maintenance?.active && !isAdmin) {
+    const isEmergency = maintenance.type === "emergency";
+    
     return (
-      <div className="fixed inset-0 z-[9999] bg-slate-900 flex items-center justify-center p-6 lg:p-12 overflow-hidden">
-        <div className="absolute inset-0 opacity-20 pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/micro-carbon.png')]" />
+      <div className="fixed inset-0 z-[9999] bg-slate-50 flex items-center justify-center p-6 lg:p-12 overflow-hidden">
+        {/* 背景の装飾 */}
+        <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
+          <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-cyan-200/40 blur-[120px] rounded-full" />
+          <div className="absolute -bottom-[10%] -right-[10%] w-[40%] h-[40%] bg-blue-200/40 blur-[120px] rounded-full" />
+        </div>
         
-        <div className="max-w-2xl w-full bg-white/10 backdrop-blur-2xl border border-white/20 rounded-[3rem] p-10 lg:p-16 shadow-2xl flex flex-col items-center text-center relative animate-fade-in-up">
-          <div className="w-24 h-24 bg-amber-500 rounded-[2rem] flex items-center justify-center text-white text-5xl mb-10 shadow-lg shadow-amber-500/30 animate-pulse">
+        <div className="max-w-2xl w-full bg-white/70 backdrop-blur-3xl border border-white rounded-[3rem] p-10 lg:p-16 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.08)] flex flex-col items-center text-center relative animate-fade-in-up">
+          
+          {/* アイコン部分 (タイプによって色を変更) */}
+          <div className={`w-24 h-24 rounded-[2.5rem] flex items-center justify-center text-white text-5xl mb-10 shadow-2xl transition-all duration-500 animate-pulse ${
+            isEmergency ? "bg-rose-500 shadow-rose-200" : "bg-cyan-500 shadow-cyan-200"
+          }`}>
             ⚠️
           </div>
           
-          <h1 className="text-4xl lg:text-5xl font-black text-white mb-6 tracking-tighter uppercase leading-tight">
-            Under Maintenance
+          <h1 className="text-4xl lg:text-5xl font-black text-slate-800 mb-6 tracking-tighter uppercase leading-tight">
+            System <br />
+            <span className={isEmergency ? "text-rose-500" : "text-cyan-600"}>Maintenance</span>
           </h1>
           
-          <div className="bg-white/5 border border-white/10 rounded-3xl p-8 mb-10 w-full text-left">
-            <h2 className="text-amber-400 font-black text-xs uppercase tracking-widest mb-4">Maintenance Details</h2>
-            <p className="text-slate-100 font-bold text-lg leading-relaxed mb-6">
+          <div className="bg-slate-50/50 border border-white rounded-[2rem] p-8 mb-10 w-full text-left shadow-inner">
+            <h2 className={`font-black text-[10px] uppercase tracking-widest mb-4 ${isEmergency ? "text-rose-400" : "text-cyan-500"}`}>
+              {isEmergency ? "Emergency Maintenance" : "Regular Maintenance"}
+            </h2>
+            <p className="text-slate-600 font-bold text-lg leading-relaxed mb-6">
               {maintenance.reason || "現在、システムメンテナンスを行っております。"}
             </p>
             
-            <div className="grid grid-cols-2 gap-6 pt-6 border-t border-white/10 text-xs">
+            <div className="grid grid-cols-2 gap-6 pt-6 border-t border-white text-[10px]">
                <div>
                   <span className="text-slate-400 font-black block mb-1 uppercase tracking-tighter">Start Time</span>
-                  <span className="text-white font-mono font-bold text-sm tracking-widest">{maintenance.start || "---"}</span>
+                  <span className="text-slate-600 font-bold text-sm tracking-widest">{maintenance.start || "---"}</span>
                </div>
                <div>
-                  <span className="text-slate-400 font-black block mb-1 uppercase tracking-tighter">End Time</span>
-                  <span className="text-white font-mono font-bold text-sm tracking-widest">{maintenance.end || "順次復旧予定"}</span>
+                  <span className="text-slate-400 font-black block mb-1 uppercase tracking-tighter">Expected End</span>
+                  <span className="text-slate-600 font-bold text-sm tracking-widest">{maintenance.end || "順次復旧予定"}</span>
                </div>
             </div>
           </div>
           
-          <p className="text-slate-400 font-bold text-sm italic">
+          <p className="text-slate-400 font-bold text-xs">
             ご不便をおかけしますが、しばらくお待ちください。<br/>
-            © 2026 PJSK Recorder Development Team
+            © 2026 PJSK Recorder Team
           </p>
         </div>
       </div>
