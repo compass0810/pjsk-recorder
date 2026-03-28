@@ -35,12 +35,21 @@ export default function Sidebar() {
   return (
     <aside className={`${isOpen ? 'w-70' : 'w-20'} min-h-[100dvh] bg-white/40 backdrop-blur-md border-r border-white/50 flex flex-col shadow-[4px_0_24px_rgba(0,0,0,0.05)] relative z-10 transition-all duration-300 pointer-events-auto`}>
 
-      {/* 開閉ボタン */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="absolute -right-3.5 top-8 w-7 h-7 bg-white rounded-full border border-slate-200 shadow-md flex items-center justify-center text-slate-500 hover:text-cyan-500 hover:border-cyan-300 transition-colors z-20"
+        className="absolute -right-3.5 top-8 w-7 h-7 bg-white rounded-full border border-slate-200 shadow-lg flex items-center justify-center text-slate-400 hover:text-cyan-500 hover:border-cyan-300 transition-all z-20 active:scale-90"
       >
-        <span className={`text-[10px] font-black transition-transform duration-300 ${isOpen ? '' : 'rotate-180'}`}>◀</span>
+        <svg 
+          viewBox="0 0 24 24" 
+          fill="none" 
+          stroke="currentColor" 
+          strokeWidth="4" 
+          strokeLinecap="round" 
+          strokeLinejoin="round" 
+          className={`w-3 h-3 transition-transform duration-500 ${isOpen ? '' : 'rotate-180'}`}
+        >
+          <polyline points="15 18 9 12 15 6" />
+        </svg>
       </button>
 
       <div className={`flex items-center gap-3 p-6 mb-4 transition-all ${isOpen ? 'justify-start' : 'justify-center px-0'}`}>
