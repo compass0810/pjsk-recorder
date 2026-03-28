@@ -14,6 +14,7 @@ export default function Sidebar() {
     { label: "譜面メーカー情報", short: "MK", path: "/maker" },
     { label: "アップデートログ", short: "LG", path: "/log" },
     { label: "注意事項", short: "NT", path: "/notice" },
+    { label: "アカウント", short: "AC", path: "/account" },
   ];
 
   return (

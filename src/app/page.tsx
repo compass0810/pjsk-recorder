@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { fetchSongs } from "@/lib/api";
-import { loadResults, saveResult, getResultKey } from "@/lib/storage";
+import { db } from "@/lib/db";
+import { supabase } from "@/lib/supabase";
 import { Song, PlayResult, Difficulty } from "@/types";
 
 interface ListEntry {
@@ -23,30 +24,38 @@ export default function ResultRecorder() {
   const [filterClearType, setFilterClearType] = useState<"ALL" | "NOCLEAR" | "AP" | "FC" | "CLEAR">("ALL");
   const [sortType, setSortType] = useState<"name_asc" | "level_desc" | "level_asc" | "acc_desc" | "acc_asc">("level_desc");
 
-  // Toast
+  // Toast / Auth
   const [toastMessage, setToastMessage] = useState("");
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   const [inputs, setInputs] = useState({ great: 0, good: 0, bad: 0, miss: 0 });
-  // ローディング
+  // ローディング / 一括処理
   const [isLoading, setIsLoading] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState({ loaded: 0, total: 0 });
+  const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
+  const [isProcessingBatch, setIsProcessingBatch] = useState(false);
+  const [isQuickAPMode, setIsQuickAPMode] = useState(false);
 
   // 初回データ読込
   useEffect(() => {
     let isMounted = true;
     (async () => {
       setIsLoading(true);
-      const data = await fetchSongs((loaded, total) => {
+      
+      // Auth 状態確認
+      const { data: { user } } = await supabase.auth.getUser();
+      if (isMounted) setIsLoggedIn(!!user);
+
+      const songData = await fetchSongs((loaded, total) => {
         if (isMounted) setLoadingProgress({ loaded, total });
       });
 
-      // 一瞬で終わってしまう場合でもUIを体感させるための微小ディレイ
-      await new Promise(r => setTimeout(r, 300));
-
       if (isMounted) {
-        setSongs(data);
-        const stored = loadResults();
-        setResults(stored);
+        setSongs(songData);
+        if (user) {
+          const cloudResults = await db.playResults.getAll();
+          setResults(cloudResults);
+        }
         setIsLoading(false);
       }
     })();
@@ -66,7 +75,8 @@ export default function ResultRecorder() {
     });
 
     return entries.filter(e => {
-      const saved = results[getResultKey(e.song.No, e.diff)];
+      const resultKey = `${e.song.No}-${e.diff}`;
+      const saved = results[resultKey];
 
       // 検索フィルタ
       if (searchQuery && !e.song.楽曲名.toLowerCase().includes(searchQuery.toLowerCase())) return false;
@@ -83,10 +93,11 @@ export default function ResultRecorder() {
     }).sort((a, b) => {
       // 達成率計算用ヘルパー
       const getAcc = (entry: ListEntry) => {
-        const r = results[getResultKey(entry.song.No, entry.diff)];
+        const resultKey = `${entry.song.No}-${entry.diff}`;
+        const r = results[resultKey];
         const ttl = Number(String(entry.song[`コンボ\n(${entry.diff})` as keyof Song] || "0").replace(/,/g, ""));
         if (!r || ttl === 0) return -1; // 未プレイ
-        return ((r.perfect * 3 + r.great * 2 + r.good) / (ttl * 3)) * 100;
+        return parseFloat(r.accuracy);
       };
 
       if (sortType === "name_asc") {
@@ -123,8 +134,8 @@ export default function ResultRecorder() {
 
   useEffect(() => {
     if (selectedEntry) {
-      const key = getResultKey(selectedEntry.song.No, selectedEntry.diff);
-      const saved = results[key];
+      const resultKey = `${selectedEntry.song.No}-${selectedEntry.diff}`;
+      const saved = results[resultKey];
       if (saved) {
         setInputs({ great: saved.great, good: saved.good, bad: saved.bad, miss: saved.miss });
       } else {
@@ -139,17 +150,17 @@ export default function ResultRecorder() {
     return Math.max(0, totalNotes - (inputs.great + inputs.good + inputs.bad + inputs.miss));
   };
 
-  const calculateAccuracy = (r: PlayResult | undefined, total: number) => {
+  const calculateAccuracy = (r: { perfect: number, great: number, good: number, bad: number, miss: number } | undefined, total: number) => {
     if (!r || total === 0) return null;
-    // PERFECT:3, GREAT:2, GOOD:1, BAD:0, MISS:0
     const score = (r.perfect * 3) + (r.great * 2) + (r.good * 1);
     const pct = (score / (total * 3)) * 100;
     return pct.toFixed(4);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!selectedEntry) return;
     const perfect = calculatePerfect();
+    const totalNotes = getNotes(selectedEntry.song, selectedEntry.diff);
 
     let autoClearStatus: "AP" | "FC" | "CLEAR" = "CLEAR";
     if (inputs.great === 0 && inputs.good === 0 && inputs.bad === 0 && inputs.miss === 0) {
@@ -158,18 +169,82 @@ export default function ResultRecorder() {
       autoClearStatus = "FC";
     }
 
+    const resultKey = `${selectedEntry.song.No}-${selectedEntry.diff}`;
     const newResult: PlayResult = {
       songNo: selectedEntry.song.No,
       difficulty: selectedEntry.diff,
       ...inputs,
       perfect,
       clearType: autoClearStatus,
+      accuracy: calculateAccuracy({ ...inputs, perfect }, totalNotes) || "0.0000",
       updatedAt: Date.now()
     };
-    saveResult(newResult);
-    setResults(prev => ({ ...prev, [getResultKey(selectedEntry.song.No, selectedEntry.diff)]: newResult }));
 
-    setToastMessage("記録を保存しました！");
+    if (isLoggedIn) {
+      await db.playResults.upsert(newResult);
+      setResults(prev => ({ ...prev, [resultKey]: newResult }));
+      setToastMessage("クラウドに記録を保存しました！");
+    } else {
+      setToastMessage("保存に失敗しました。ログイン状態を確認してください。");
+    }
+    setTimeout(() => setToastMessage(""), 3000);
+  };
+
+  const handleQuickAP = async (entry: ListEntry) => {
+    if (!isLoggedIn) {
+       setToastMessage("失敗：ログインが必要です");
+       setTimeout(() => setToastMessage(""), 3000);
+       return;
+    }
+
+    const totalNotes = getNotes(entry.song, entry.diff);
+    const resultKey = `${entry.song.No}-${entry.diff}`;
+    const newResult: PlayResult = {
+      songNo: entry.song.No,
+      difficulty: entry.diff,
+      great: 0, good: 0, bad: 0, miss: 0,
+      perfect: totalNotes,
+      clearType: "AP",
+      accuracy: "100.0000",
+      updatedAt: Date.now()
+    };
+
+    await db.playResults.upsert(newResult);
+    setResults(prev => ({ ...prev, [resultKey]: newResult }));
+    setToastMessage(`${entry.song.楽曲名} を AP で保存しました！`);
+    setTimeout(() => setToastMessage(""), 3000);
+  };
+
+  const handleBatchAP = async () => {
+    if (!isLoggedIn || listEntries.length === 0) return;
+    setIsProcessingBatch(true);
+
+    const now = Date.now();
+    const batchData: PlayResult[] = listEntries.map(entry => {
+      const totalNotes = getNotes(entry.song, entry.diff);
+      return {
+        songNo: entry.song.No,
+        difficulty: entry.diff,
+        great: 0, good: 0, bad: 0, miss: 0,
+        perfect: totalNotes,
+        clearType: "AP",
+        accuracy: "100.0000",
+        updatedAt: now
+      };
+    });
+
+    await db.playResults.upsertMany(batchData);
+
+    // ローカルステート一括更新
+    const newResults = { ...results };
+    batchData.forEach(r => {
+      newResults[`${r.songNo}-${r.difficulty}`] = r;
+    });
+    setResults(newResults);
+
+    setIsProcessingBatch(false);
+    setIsBatchModalOpen(false);
+    setToastMessage(`${listEntries.length} 件を一括 AP 保存しました！`);
     setTimeout(() => setToastMessage(""), 3000);
   };
 
@@ -207,7 +282,25 @@ export default function ResultRecorder() {
         <div className="p-5 bg-gradient-to-r from-blue-100/30 to-cyan-100/30 border-b border-white/50 space-y-3">
           <div className="flex justify-between items-center mb-1">
             <h2 className="text-xl font-black text-slate-800 tracking-tight">Songs</h2>
-            <span className="text-xs font-bold px-2 py-1 bg-white/80 rounded-full text-slate-500">{listEntries.length} 譜面</span>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => setIsQuickAPMode(!isQuickAPMode)}
+                className={`text-[10px] font-black px-2 py-1 rounded-lg transition-all uppercase tracking-tighter shadow-sm border
+                  ${isQuickAPMode ? "bg-sky-500 text-white border-sky-600 ring-2 ring-sky-300" : "bg-white text-slate-400 border-slate-200 hover:bg-slate-50"}
+                `}
+                title="リストをクリックするだけでAP登録するモード"
+              >
+                Quick AP ON
+              </button>
+              <button 
+                onClick={() => setIsBatchModalOpen(true)}
+                disabled={listEntries.length === 0}
+                className="text-[10px] font-black px-2 py-1 bg-white text-sky-500 border border-sky-200 rounded-lg hover:bg-sky-50 disabled:opacity-30 transition-all uppercase tracking-tighter shadow-sm"
+              >
+                Batch AP
+              </button>
+              <span className="text-xs font-bold px-2 py-1 bg-white/80 rounded-full text-slate-500">{listEntries.length} 譜面</span>
+            </div>
           </div>
 
           <input
@@ -240,8 +333,8 @@ export default function ResultRecorder() {
         <div className="flex-1 overflow-y-auto p-3 space-y-2">
           {listEntries.length === 0 && <p className="text-center text-slate-400 mt-10 font-bold">見つかりませんでした</p>}
           {listEntries.map((entry, idx) => {
-            const key = getResultKey(entry.song.No, entry.diff);
-            const saved = results[key];
+            const resultKey = `${entry.song.No}-${entry.diff}`;
+            const saved = results[resultKey];
             const isSelected = selectedEntry?.song.No === entry.song.No && selectedEntry?.diff === entry.diff;
 
             const diffColor = entry.diff === "EXP" ? "bg-[var(--color-diff-expert)]" : entry.diff === "MAS" ? "bg-[var(--color-diff-master)]" : "bg-[var(--color-diff-append)]";
@@ -250,11 +343,12 @@ export default function ResultRecorder() {
 
             return (
               <button
-                key={key}
-                onClick={() => setSelectedEntry(entry)}
+                key={resultKey}
+                onClick={() => isQuickAPMode ? handleQuickAP(entry) : setSelectedEntry(entry)}
                 style={{ animationDelay: `${idx * 0.03}s` }}
                 className={`w-full text-left p-3 rounded-[1.25rem] transition-all duration-300 flex items-center gap-4 animate-fade-in-up
                   ${isSelected ? `bg-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] ring-2 ${diffRingColor} scale-100 relative z-10` : "bg-white/50 border border-slate-200/50 hover:bg-white/80 hover:shadow-md hover:scale-[1.01]"}
+                  ${isQuickAPMode ? "hover:ring-2 hover:ring-sky-400" : ""}
                 `}
               >
                 {/* 難易度とレベルの丸形バッジ */}
@@ -275,7 +369,7 @@ export default function ResultRecorder() {
                           {saved.clearType}
                         </span>
                       )}
-                      <span className={`text-xs font-black font-mono ${isSelected ? diffTextColor : "text-slate-500"}`}>{calculateAccuracy(saved, getNotes(entry.song, entry.diff))}%</span>
+                      <span className={`text-xs font-black font-mono ${isSelected ? diffTextColor : "text-slate-500"}`}>{parseFloat(saved.accuracy).toFixed(4)}%</span>
                     </div>
                   )}
                 </div>
@@ -285,7 +379,7 @@ export default function ResultRecorder() {
         </div>
       </div>
 
-      {/* 右ペイン: 最適化された入力フォーム */}
+      {/* 右ペイン: 入力フォーム */}
       <div className="flex-1 flex flex-col items-center justify-center p-4 relative">
         {!selectedEntry ? (
           <div className="text-slate-400 font-bold bg-white/40 backdrop-blur px-8 py-4 rounded-full border border-white/50 tracking-wider">
@@ -315,7 +409,7 @@ export default function ResultRecorder() {
               <div className="text-right pb-1">
                 <div className="text-xs font-black text-slate-400 tracking-wider mb-1 uppercase">Best Accuracy</div>
                 <div className="text-3xl font-black font-mono text-cyan-500 border-b-2 border-cyan-200 pb-1">
-                  {calculateAccuracy(results[getResultKey(selectedEntry.song.No, selectedEntry.diff)], getNotes(selectedEntry.song, selectedEntry.diff)) || "---.----"}<span className="text-lg opacity-70 ml-1">%</span>
+                  {results[`${selectedEntry.song.No}-${selectedEntry.diff}`]?.accuracy || "---.----"}<span className="text-lg opacity-70 ml-1">%</span>
                 </div>
               </div>
             </div>
@@ -324,7 +418,6 @@ export default function ResultRecorder() {
             <div className="flex-1 px-10 pb-10 flex flex-col justify-center relative z-10">
               <div className="bg-slate-50/50 rounded-[2rem] p-8 border border-white/60 shadow-inner flex flex-col h-full">
 
-                {/* 自動計算 PERFECT / TOTAL */}
                 <div className="flex justify-between items-center mb-8 px-8">
                   <div className="flex-1 text-center">
                     <div className="text-orange-400/80 font-black text-sm tracking-widest mb-1">PERFECT</div>
@@ -341,7 +434,6 @@ export default function ResultRecorder() {
                   </div>
                 </div>
 
-                {/* 詳細入力フォーム */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 flex-1">
                   {[
                     { key: "great", label: "GREAT", colorClasses: { label: "text-pink-400", bgLine: "bg-pink-400/20 group-focus-within:bg-pink-400", ring: "focus-within:ring-pink-300", input: "text-pink-500" } },
@@ -362,7 +454,6 @@ export default function ResultRecorder() {
                   ))}
                 </div>
 
-                {/* アクション制御（クリアセレクト＆保存） */}
                 <div className="mt-8 flex gap-4 h-16">
                   <button
                     onClick={handleSave}
@@ -378,6 +469,48 @@ export default function ResultRecorder() {
           </div>
         )}
       </div>
+
+      {/* 一括 AP 確認モーダル */}
+      {isBatchModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in-up">
+          <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden flex flex-col border border-white/50">
+            <div className="p-8 text-center">
+              <div className="w-20 h-20 bg-sky-100 text-sky-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                <span className="text-4xl font-black italic">AP</span>
+              </div>
+              <h3 className="text-2xl font-black text-slate-800 mb-2">一括 AP 処理</h3>
+              <p className="text-slate-500 font-bold leading-relaxed">
+                現在リストに表示されている <span className="text-sky-500 text-xl mx-1">{listEntries.length}</span> 譜面を<br/>すべて「AP」としてクラウドに記録します。
+              </p>
+              <div className="mt-4 p-4 bg-amber-50 rounded-2xl border border-amber-100 flex items-start gap-3 text-left">
+                <span className="text-amber-500 mt-0.5">⚠️</span>
+                <p className="text-xs font-bold text-amber-700 leading-tight">
+                  既存のクリア記録（FC等）がある場合も AP で上書きされます。この操作は取り消せません。
+                </p>
+              </div>
+            </div>
+            
+            <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-4">
+              <button 
+                onClick={() => setIsBatchModalOpen(false)}
+                disabled={isProcessingBatch}
+                className="flex-1 py-4 rounded-2xl font-black text-slate-500 bg-white border border-slate-200 hover:bg-slate-100 transition-all disabled:opacity-50"
+              >
+                CANCEL
+              </button>
+              <button 
+                onClick={handleBatchAP}
+                disabled={isProcessingBatch}
+                className="flex-1 py-4 rounded-2xl font-black text-white bg-sky-500 hover:bg-sky-600 shadow-lg shadow-sky-200 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isProcessingBatch ? (
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                ) : "EXECUTE"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

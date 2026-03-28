@@ -2,42 +2,115 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { fetchSongs } from "@/lib/api";
-import { loadRankMatchRecords, saveRankMatchRecord, deleteRankMatchRecord } from "@/lib/storage";
+import { db } from "@/lib/db";
+import { supabase } from "@/lib/supabase";
 import { Song, RankMatchRecord, Difficulty } from "@/types";
+
+const RANKS = [
+  { id: "master", name: "Master", base: 0, color: "from-purple-400 to-fuchsia-400", bg: "bg-purple-50", text: "text-purple-600", symbol: "✦" },
+  { id: "diamond", name: "Diamond", base: -24, color: "from-emerald-400 to-teal-400", bg: "bg-emerald-50", text: "text-emerald-600", symbol: "♦" },
+  { id: "platinum", name: "Platinum", base: -48, color: "from-cyan-400 to-blue-400", bg: "bg-cyan-50", text: "text-cyan-600", symbol: "★" },
+  { id: "gold", name: "Gold", base: -72, color: "from-amber-400 to-yellow-400", bg: "bg-amber-50", text: "text-amber-600", symbol: "●" },
+  { id: "silver", name: "Silver", base: -96, color: "from-slate-400 to-slate-300", bg: "bg-slate-50", text: "text-slate-600", symbol: "●" },
+  { id: "bronze", name: "Bronze", base: -120, color: "from-orange-500 to-orange-400", bg: "bg-orange-50", text: "text-orange-600", symbol: "●" },
+  { id: "beginner", name: "Beginner", base: -144, color: "from-lime-400 to-green-400", bg: "bg-lime-50", text: "text-lime-600", symbol: "✤" },
+];
+
+function getRankInfo(totalPoints: number) {
+  if (totalPoints >= 0) {
+    return { ...RANKS[0], class: null, pointInClass: totalPoints };
+  }
+  if (totalPoints < -144) {
+    return { ...RANKS[6], class: 1, pointInClass: 0 };
+  }
+  for (let i = 1; i < RANKS.length; i++) {
+    const rank = RANKS[i];
+    if (totalPoints >= rank.base) {
+      const ptsAboveBase = totalPoints - rank.base;
+      const c = Math.floor(ptsAboveBase / 6) + 1;
+      return { ...rank, class: Math.min(c, 4), pointInClass: ptsAboveBase % 6 };
+    }
+  }
+  return { ...RANKS[6], class: 1, pointInClass: 0 };
+}
 
 export default function RankMatchRecorder() {
   const [songs, setSongs] = useState<Song[]>([]);
   const [records, setRecords] = useState<RankMatchRecord[]>([]);
+  const [basePoints, setBasePoints] = useState(0);
+  const [baseStats, setBaseStats] = useState({ win: 0, lose: 0, draw: 0, aps: 0 });
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   const [selectedSongName, setSelectedSongName] = useState("");
   const [selectedDiff, setSelectedDiff] = useState<Difficulty>("MAS");
   const [rivalName, setRivalName] = useState("");
 
-  // youのライフ0判定（isZeroLife）を管理。trueの場合FAILEDとなり-0.3ptのペナルティ。
   const [you, setYou] = useState({ gr: 0, go: 0, b: 0, m: 0, isZeroLife: false });
   const [rival, setRival] = useState({ gr: 0, go: 0, b: 0, m: 0 });
 
   const [toastMessage, setToastMessage] = useState("");
 
+  // Override Modal State
+  const [isOverrideModalOpen, setIsOverrideModalOpen] = useState(false);
+  const [overrideRank, setOverrideRank] = useState(RANKS[0].id);
+  const [overrideClass, setOverrideClass] = useState(1);
+  const [overridePoint, setOverridePoint] = useState(0.0);
+  const [overrideWin, setOverrideWin] = useState(0);
+  const [overrideLose, setOverrideLose] = useState(0);
+  const [overrideDraw, setOverrideDraw] = useState(0);
+  const [overrideAps, setOverrideAps] = useState(0);
+
   useEffect(() => {
     fetchSongs().then(setSongs);
-    setRecords(loadRankMatchRecords());
+    
+    const init = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setIsLoggedIn(!!user);
+      if (user) {
+        const [cloudRecords, profile] = await Promise.all([
+          db.rankMatch.getAll(),
+          db.profile.get()
+        ]);
+        setRecords(cloudRecords);
+        if (profile) {
+          setBasePoints(parseFloat(profile.base_points));
+          setBaseStats({ 
+            win: profile.base_win, 
+            lose: profile.base_lose, 
+            draw: profile.base_draw, 
+            aps: profile.base_aps 
+          });
+        }
+      }
+    };
+    init();
   }, []);
 
   const stats = useMemo(() => {
     let win = 0, lose = 0, draw = 0, aps = 0;
-    let totalPoints = 0;
+    let recordsPointsOffset = 0;
     records.forEach(r => {
       if (r.result === "WIN") win++;
       else if (r.result === "LOSE") lose++;
       else draw++;
 
       if (r.you.clearType === "AP") aps++;
-
-      totalPoints += r.pointChange;
+      
+      recordsPointsOffset += r.pointChange;
     });
-    return { matches: records.length, win, lose, draw, aps, points: totalPoints };
-  }, [records]);
+    const totalPoints = basePoints + recordsPointsOffset;
+    return {
+      matches: records.length + baseStats.win + baseStats.lose + baseStats.draw,
+      win: win + baseStats.win,
+      lose: lose + baseStats.lose,
+      draw: draw + baseStats.draw,
+      aps: aps + baseStats.aps,
+      recordsPointsOffset,
+      totalPoints
+    };
+  }, [records, basePoints, baseStats]);
+
+  const rankInfo = getRankInfo(stats.totalPoints);
 
   const songOptions = useMemo(() => songs.map(s => s.楽曲名), [songs]);
 
@@ -46,8 +119,6 @@ export default function RankMatchRecorder() {
     ? currentSong[selectedDiff === "EXP" ? "X" : selectedDiff === "MAS" ? "M" : "A" as keyof Song] || "??"
     : "??";
 
-
-  // 失点(Penalty)計算: GREAT=1, GOOD=2, BAD=3, MISS=3
   const calcPenalty = (gr: number, go: number, b: number, m: number) => {
     return (gr * 1) + (go * 2) + (b * 3) + (m * 3);
   };
@@ -59,12 +130,11 @@ export default function RankMatchRecorder() {
     let result: "WIN" | "LOSE" | "DRAW" = "DRAW";
     let pointChange = 0;
 
-    // 失点が少ないほうが勝利
     if (yPenalty < rPenalty) { result = "WIN"; pointChange += 1.0; }
     else if (yPenalty > rPenalty) { result = "LOSE"; pointChange -= 1.0; }
     else {
       result = "DRAW";
-      if (yPenalty === 0 && rPenalty === 0) pointChange += 1.0; // AP引き分け特例
+      if (yPenalty === 0 && rPenalty === 0) pointChange += 1.0; 
     }
 
     let pClearType: "AP" | "FC" | "CLEAR" | "FAILED" = "CLEAR";
@@ -73,7 +143,6 @@ export default function RankMatchRecorder() {
       pClearType = "FAILED";
       pointChange -= 0.3;
     } else {
-      // isClear が True の場合、AP / FC を自動判定
       if (you.gr === 0 && you.go === 0 && you.b === 0 && you.m === 0) {
         pClearType = "AP";
         pointChange += 0.2;
@@ -95,11 +164,16 @@ export default function RankMatchRecorder() {
 
   const { result: currentResult, yPenalty, rPenalty, pointChange: currentPointChange, pClearType, rClearType } = calcResult();
 
-  const handleAddRecord = () => {
+  const handleAddRecord = async () => {
     if (!selectedSongName) {
       alert("楽曲名を選択してください。");
       return;
     }
+    if (!isLoggedIn) {
+      alert("ログインが必要です。アカウントページからログインしてください。");
+      return;
+    }
+
     const newRecord: RankMatchRecord = {
       id: Date.now().toString(),
       timestamp: Date.now(),
@@ -107,13 +181,13 @@ export default function RankMatchRecorder() {
       difficulty: selectedDiff,
       level: currentLevel as string,
       rivalName: rivalName || "名無し",
-      you: { great: you.gr, good: you.go, bad: you.b, miss: you.m, clearType: pClearType },
+      you: { perfect: Math.max(0, 1000 - (you.gr+you.go+you.b+you.m)), great: you.gr, good: you.go, bad: you.b, miss: you.m, clearType: pClearType },
       rival: { great: rival.gr, good: rival.go, bad: rival.b, miss: rival.m, clearType: rClearType },
       result: currentResult,
       pointChange: currentPointChange
     };
 
-    saveRankMatchRecord(newRecord);
+    await db.rankMatch.insert(newRecord);
     setRecords([newRecord, ...records]);
 
     setToastMessage("戦績を記録しました！");
@@ -124,18 +198,42 @@ export default function RankMatchRecorder() {
     setRivalName("");
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (window.confirm("この対戦記録を削除してよろしいですか？")) {
-      deleteRankMatchRecord(id);
+      await db.rankMatch.delete(id);
       setRecords(records.filter(r => r.id !== id));
     }
   };
 
-  // 天秤ゲージ用の計算 (失点での比較)
-  const maxScale = Math.max(yPenalty, rPenalty) || 1;
+  const handleOverrideSave = async () => {
+    if (!isLoggedIn) return;
+    const rankObj = RANKS.find(r => r.id === overrideRank);
+    if (!rankObj) return;
+
+    let targetTotal = 0;
+    if (rankObj.id === "master") {
+      targetTotal = overridePoint;
+    } else {
+      targetTotal = rankObj.base + ((overrideClass - 1) * 6) + overridePoint;
+    }
+
+    const newBase = targetTotal - stats.recordsPointsOffset;
+    
+    await Promise.all([
+      db.profile.updatePoints(newBase),
+      db.profile.updateStats({ win: overrideWin, lose: overrideLose, draw: overrideDraw, aps: overrideAps })
+    ]);
+
+    setBasePoints(newBase);
+    setBaseStats({ win: overrideWin, lose: overrideLose, draw: overrideDraw, aps: overrideAps });
+    setIsOverrideModalOpen(false);
+
+    setToastMessage("設定を保存しました");
+    setTimeout(() => setToastMessage(""), 3000);
+  };
+
   const youBarWidth = Math.max(5, (yPenalty / (yPenalty + rPenalty || 1)) * 100);
   const rivalBarWidth = 100 - youBarWidth;
-
   const diffColor = selectedDiff === "EXP" ? "var(--color-diff-expert)" : selectedDiff === "MAS" ? "var(--color-diff-master)" : "var(--color-diff-append)";
 
   return (
@@ -149,39 +247,136 @@ export default function RankMatchRecorder() {
         </div>
       </div>
 
-      {/* ヘッダー戦績 */}
-      <div className="bg-white/70 backdrop-blur-xl rounded-[1.5rem] p-6 shadow-md border border-white flex flex-col md:flex-row items-center justify-between shrink-0 animate-fade-in-up">
-        <div className="flex flex-col mb-4 md:mb-0 text-center md:text-left">
-          <h2 className="text-3xl font-black text-slate-800 tracking-tighter">Season Results</h2>
-          <div className="text-sm font-bold text-slate-400 mt-1 uppercase tracking-wider">(2026.4.1 - 6.30)</div>
-        </div>
-        <div className="flex items-baseline gap-6 text-xl font-bold bg-slate-50/50 px-6 py-2 rounded-xl border border-slate-100 shadow-inner">
-          <div className="flex flex-col items-center"><span className="text-slate-700 text-4xl font-black">{stats.matches}</span><span className="text-xs tracking-widest uppercase text-slate-400">Match</span></div>
-          <div className="flex flex-col items-center"><span className="text-rose-500 text-4xl font-black">{stats.win}</span><span className="text-xs tracking-widest uppercase text-rose-400">Win</span></div>
-          <div className="flex flex-col items-center"><span className="text-blue-500 text-4xl font-black">{stats.lose}</span><span className="text-xs tracking-widest uppercase text-blue-400">Lose</span></div>
-          <div className="flex flex-col items-center"><span className="text-emerald-500 text-4xl font-black">{stats.draw}</span><span className="text-xs tracking-widest uppercase text-emerald-400">Draw</span></div>
-          <div className="flex flex-col items-center ml-2 border-l-2 border-slate-100 pl-6">
-            <span className="text-4xl font-black bg-clip-text text-transparent bg-gradient-to-r from-pink-400 to-sky-400">{stats.aps}</span>
-            <span className="text-xs tracking-widest uppercase font-bold bg-clip-text text-transparent bg-gradient-to-r from-pink-400 to-sky-400">AP</span>
+      {/* ランク上書きモーダル */}
+      {isOverrideModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-fade-in-up">
+          <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-sm overflow-hidden flex flex-col border border-white/50">
+            <div className="bg-gradient-to-r from-slate-100 to-slate-50 p-6 border-b border-slate-200">
+              <h3 className="text-xl font-black text-slate-800">Rank Override</h3>
+              <p className="text-xs font-bold text-slate-500 mt-1">現在のランク情報を手動で設定します</p>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="text-xs font-black tracking-widest text-slate-400 uppercase mb-1 block">Rank</label>
+                <select value={overrideRank} onChange={e => setOverrideRank(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 font-bold text-slate-700 outline-none focus:ring-2 focus:ring-cyan-300">
+                  {RANKS.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                </select>
+              </div>
+              
+              {overrideRank !== "master" && (
+                <div>
+                  <label className="text-xs font-black tracking-widest text-slate-400 uppercase mb-1 block">Class</label>
+                  <select value={overrideClass} onChange={e => setOverrideClass(Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 font-bold text-slate-700 outline-none focus:ring-2 focus:ring-cyan-300">
+                    <option value={1}>Class 1 (最下位)</option>
+                    <option value={2}>Class 2</option>
+                    <option value={3}>Class 3</option>
+                    <option value={4}>Class 4 (昇格直前)</option>
+                  </select>
+                </div>
+              )}
+              
+              <div>
+                <label className="text-xs font-black tracking-widest text-slate-400 uppercase mb-1 block">
+                  {overrideRank === "master" ? "Total Points" : "Points in Class (0.0 - 5.9)"}
+                </label>
+                <input type="number" step="0.1" value={overridePoint} onChange={e => setOverridePoint(Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 font-bold font-mono text-slate-700 outline-none focus:ring-2 focus:ring-cyan-300 text-xl" />
+              </div>
+
+              <div className="pt-2 border-t border-slate-100">
+                <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-3 text-center">Base Counter Override</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-black tracking-widest text-rose-400 uppercase">Win</label>
+                    <input type="number" value={overrideWin} onChange={e => setOverrideWin(Number(e.target.value))} className="bg-slate-50 border border-slate-200 rounded-lg p-2 font-black font-mono text-slate-700" />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-black tracking-widest text-blue-400 uppercase">Lose</label>
+                    <input type="number" value={overrideLose} onChange={e => setOverrideLose(Number(e.target.value))} className="bg-slate-50 border border-slate-200 rounded-lg p-2 font-black font-mono text-slate-700" />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-black tracking-widest text-emerald-400 uppercase">Draw</label>
+                    <input type="number" value={overrideDraw} onChange={e => setOverrideDraw(Number(e.target.value))} className="bg-slate-50 border border-slate-200 rounded-lg p-2 font-black font-mono text-slate-700" />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-black tracking-widest text-pink-400 uppercase">AP</label>
+                    <input type="number" value={overrideAps} onChange={e => setOverrideAps(Number(e.target.value))} className="bg-slate-50 border border-slate-200 rounded-lg p-2 font-black font-mono text-slate-700" />
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex gap-3">
+              <button onClick={() => setIsOverrideModalOpen(false)} className="flex-1 py-3 rounded-xl font-black text-slate-500 bg-white border border-slate-200 hover:bg-slate-100 transition-colors">Cancel</button>
+              <button onClick={handleOverrideSave} className="flex-1 py-3 rounded-xl font-black text-white bg-slate-800 hover:bg-slate-700 shadow-md shadow-slate-300 transition-all">Save</button>
+            </div>
           </div>
         </div>
-        <div className="flex flex-col items-end mt-4 md:mt-0">
-          <div className="text-xs font-black text-slate-400 tracking-widest uppercase mb-1">Current Rate</div>
-          <div className="text-4xl font-black font-mono tracking-tighter shadow-sm bg-white px-4 py-2 rounded-xl text-slate-800">
-            <span className={stats.points > 0 ? "text-cyan-500" : stats.points < 0 ? "text-rose-500" : "text-slate-400"}>
-              {stats.points > 0 ? "+" : ""}{stats.points.toFixed(2)}
-            </span>
-            <span className="text-base font-bold ml-1">pt</span>
+      )}
+
+      {/* ヘッダー戦績 */}
+      <div className="bg-white/70 backdrop-blur-xl rounded-[1.5rem] p-6 shadow-md border border-white flex flex-col xl:flex-row items-center justify-between gap-6 shrink-0 animate-fade-in-up">
+        
+        {/* レート・バッジ UI */}
+        <div className="flex items-center gap-4 bg-white/60 p-4 rounded-2xl shadow-sm border border-slate-100 flex-1 w-full max-w-sm shrink-0">
+          <div className={`w-16 h-16 shrink-0 rounded-2xl bg-gradient-to-br flex items-center justify-center ${rankInfo.color} shadow-lg text-white`}>
+            <span className="text-3xl font-black drop-shadow-sm">{rankInfo.symbol}</span>
+          </div>
+          <div className="flex flex-col flex-1 min-w-0">
+            <div className="flex justify-between items-center w-full">
+              <span className="text-[10px] tracking-widest uppercase text-slate-400 font-bold">Current Rank</span>
+              <button onClick={() => setIsOverrideModalOpen(true)} className="text-slate-400 hover:text-slate-600 transition-colors" title="ランクを手動で修正">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+              </button>
+            </div>
+            <div className="flex items-baseline gap-1 mt-0.5 truncate">
+              <h3 className={`text-xl font-black truncate ${rankInfo.text}`}>{rankInfo.name}</h3>
+              {rankInfo.class && <span className={`text-xl font-black ${rankInfo.text}`}> {rankInfo.class}</span>}
+            </div>
+            {rankInfo.class ? (
+              <div className="text-xs font-bold text-slate-500 font-mono mt-0.5">
+                {rankInfo.pointInClass.toFixed(1)} <span className="text-[10px] text-slate-400 italic">/ 6.0 pt</span>
+              </div>
+            ) : (
+              <div className="text-xs font-bold text-slate-500 font-mono mt-0.5">
+                {rankInfo.pointInClass.toFixed(2)} pt
+              </div>
+            )}
+            
+            {rankInfo.class && (
+              <div className="w-full bg-slate-200 h-1.5 rounded-full mt-2 overflow-hidden shrink-0">
+                <div className={`h-full bg-gradient-to-r ${rankInfo.color} transition-all duration-500`} style={{ width: `${(rankInfo.pointInClass / 6) * 100}%` }}></div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-col md:flex-row items-center gap-6 w-full justify-between">
+          <div className="flex items-baseline gap-4 md:gap-6 text-xl font-bold bg-slate-50/50 px-6 py-3 rounded-xl border border-slate-100 shadow-inner w-full md:w-auto justify-between flex-wrap">
+            <div className="flex flex-col items-center"><span className="text-slate-700 text-3xl md:text-4xl font-black">{stats.matches}</span><span className="text-[10px] tracking-widest uppercase text-slate-400">Match</span></div>
+            <div className="flex flex-col items-center"><span className="text-rose-500 text-3xl md:text-4xl font-black">{stats.win}</span><span className="text-[10px] tracking-widest uppercase text-rose-400">Win</span></div>
+            <div className="flex flex-col items-center"><span className="text-blue-500 text-3xl md:text-4xl font-black">{stats.lose}</span><span className="text-[10px] tracking-widest uppercase text-blue-400">Lose</span></div>
+            <div className="flex flex-col items-center"><span className="text-emerald-500 text-3xl md:text-4xl font-black">{stats.draw}</span><span className="text-[10px] tracking-widest uppercase text-emerald-400">Draw</span></div>
+            <div className="flex flex-col items-center ml-2 border-l-2 border-slate-100 pl-4 md:pl-6">
+              <span className="text-3xl md:text-4xl font-black bg-clip-text text-transparent bg-gradient-to-r from-pink-400 to-sky-400">{stats.aps}</span>
+              <span className="text-[10px] tracking-widest uppercase font-bold bg-clip-text text-transparent bg-gradient-to-r from-pink-400 to-sky-400">AP</span>
+            </div>
+          </div>
+
+          <div className="flex flex-col items-end shrink-0 text-right w-full md:w-auto">
+            <div className="text-[10px] font-black text-slate-400 tracking-widest uppercase mb-1">Total Score</div>
+            <div className={`text-4xl font-black font-mono tracking-tighter shadow-sm bg-white px-4 py-2 rounded-xl border border-slate-100 w-full md:w-auto ${stats.totalPoints > 0 ? "text-cyan-500" : stats.totalPoints < 0 ? "text-rose-500" : "text-slate-400"}`}>
+              {stats.totalPoints > 0 ? "+" : ""}{stats.totalPoints.toFixed(2)}
+            </div>
           </div>
         </div>
       </div>
 
       <div className="flex flex-col xl:flex-row gap-6 flex-1 min-h-0">
 
-        {/* 左: 新規レコード VS 対面式UI (縮小版) */}
+        {/* 左: 新規レコード VS */}
         <div className="xl:w-[60%] flex flex-col bg-white/85 backdrop-blur-2xl rounded-[1.5rem] shadow-xl border border-white/80 shrink-0 p-5 relative animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
 
-          {/* 曲名・相手指定 */}
           <div className="flex flex-col sm:flex-row items-center gap-2 mb-4">
             <div className="flex-1 flex items-center justify-between bg-slate-50/80 rounded-lg shadow-sm border border-slate-100 pr-2 w-full">
               <input
@@ -210,10 +405,8 @@ export default function RankMatchRecorder() {
             </div>
           </div>
 
-          {/* 対面VSエリア */}
           <div className="flex flex-col flex-1 justify-center">
 
-            {/* 天秤プログレス (失点差) */}
             <div className="mb-6 text-center relative px-2">
               <div className="flex justify-between items-end mb-1">
                 <div className="text-4xl font-black text-rose-500 font-mono tracking-tighter" title="YOU 失点">{yPenalty === 0 ? "0" : `-${yPenalty}`}</div>
@@ -224,14 +417,12 @@ export default function RankMatchRecorder() {
                 <div className="text-4xl font-black text-blue-500 font-mono tracking-tighter" title="RIVAL 失点">{rPenalty === 0 ? "0" : `-${rPenalty}`}</div>
               </div>
               <div className="w-full h-3 bg-slate-100 rounded-full flex overflow-hidden shadow-inner flex-row-reverse">
-                {/* 失点が「少ない方」のゲージを長くする（勝っている側を長く表示する視覚的配慮） */}
                 <div className="h-full bg-rose-400 transition-all duration-500" style={{ width: `${yPenalty === 0 && rPenalty === 0 ? 50 : 100 - youBarWidth}%` }}></div>
                 <div className="h-full bg-blue-400 transition-all duration-500" style={{ width: `${yPenalty === 0 && rPenalty === 0 ? 50 : 100 - rivalBarWidth}%` }}></div>
               </div>
             </div>
 
             <div className="flex flex-col sm:flex-row gap-4">
-              {/* YOU */}
               <div className="flex-1 bg-gradient-to-br from-rose-50/30 to-white rounded-[1rem] p-4 border border-rose-100 relative pt-6">
                 <div className="absolute -top-3 left-4 bg-rose-500 text-white px-4 py-0.5 text-xs rounded-full font-black tracking-widest shadow-sm">YOU</div>
 
@@ -257,7 +448,6 @@ export default function RankMatchRecorder() {
                 </label>
               </div>
 
-              {/* RIVAL */}
               <div className="flex-1 bg-gradient-to-br from-blue-50/30 to-white rounded-[1rem] p-4 border border-blue-100 relative pt-6 mb-4 sm:mb-0">
                 <div className="absolute -top-3 right-4 bg-blue-500 text-white px-4 py-0.5 text-xs rounded-full font-black tracking-widest shadow-sm uppercase">Rival</div>
 
@@ -277,7 +467,6 @@ export default function RankMatchRecorder() {
                   ))}
                 </div>
 
-                {/* ボタン格納用スペースの有効活用 */}
                 <div className="absolute -bottom-[20px] left-0 w-full px-4 sm:static sm:bottom-auto sm:px-0 sm:mt-4 h-12 flex justify-end items-end">
                   <button onClick={handleAddRecord} className="bg-slate-800 text-white font-black text-sm px-6 py-3 rounded-xl shadow-xl hover:shadow-2xl hover:bg-cyan-600 transition-all tracking-widest mt-auto mb-[-16px] sm:mb-0 z-20">
                     SAVE RECORD
@@ -295,7 +484,6 @@ export default function RankMatchRecorder() {
           <div className="flex-1 overflow-y-auto space-y-2.5 pr-1">
             {records.length === 0 && <p className="text-center text-slate-400 mt-10 font-bold text-sm">No Records</p>}
             {records.map(r => {
-              // 古い履歴等のため、一応Penaltyロジックで計算しなおす
               const yPen = calcPenalty(r.you.great, r.you.good, r.you.bad, r.you.miss);
               const rPen = calcPenalty(r.rival.great, r.rival.good, r.rival.bad, r.rival.miss);
               const isWin = r.result === "WIN";
@@ -311,25 +499,25 @@ export default function RankMatchRecorder() {
                   <div className="flex items-center gap-2">
                     <div className={`w-1.5 h-full absolute left-0 top-0 bottom-0 rounded-l-xl ${isWin ? "bg-rose-400" : isLose ? "bg-blue-400" : "bg-emerald-400"}`}></div>
 
-                    <div className="pl-2 flex-1">
+                    <div className="pl-2 flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <span className={`text-[10px] font-black px-2 py-0.5 rounded text-white ${isWin ? "bg-rose-500" : isLose ? "bg-blue-500" : "bg-emerald-500"}`}>{r.result}</span>
                         <div className="font-black text-slate-800 truncate leading-tight tracking-tight text-sm">{r.songName}</div>
                       </div>
                       <div className="flex justify-between items-end mt-2">
-                        <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
+                        <div className="flex items-center gap-2 text-xs font-bold text-slate-500 overflow-hidden">
                           {r.you.clearType !== "CLEAR" && (
-                            <span className={`px-1 rounded border leading-none font-black ${badgeColor}`}>{r.you.clearType}</span>
+                            <span className={`px-1 rounded border leading-none font-black ${badgeColor} shrink-0`}>{r.you.clearType}</span>
                           )}
-                          <span className={yPen > 0 ? "text-rose-500 font-black font-mono text-sm" : "text-sm font-black font-mono"}>{yPen > 0 ? `-${yPen}` : "0"}</span>
-                          <span className="mx-1 text-slate-400 text-[10px] italic">vs</span>
-                          <span className="font-bold text-slate-600 truncate max-w-[150px] text-xs">{r.rivalName || "RIVAL"}</span>
-                          <span className={rPen > 0 ? "text-blue-500 font-black font-mono ml-1 text-sm" : "ml-1 text-sm font-black font-mono"}>{rPen > 0 ? `-${rPen}` : "0"}</span>
+                          <span className={yPen > 0 ? "text-rose-500 font-black font-mono text-sm shrink-0" : "text-sm font-black font-mono shrink-0"}>{yPen > 0 ? `-${yPen}` : "0"}</span>
+                          <span className="mx-1 text-slate-400 text-[10px] italic shrink-0">vs</span>
+                          <span className="font-bold text-slate-600 truncate max-w-[120px] text-xs leading-none">{r.rivalName || "RIVAL"}</span>
+                          <span className={rPen > 0 ? "text-blue-500 font-black font-mono ml-1 text-sm shrink-0" : "ml-1 text-sm font-black font-mono shrink-0"}>{rPen > 0 ? `-${rPen}` : "0"}</span>
                           {r.rival.clearType !== "CLEAR" && (
-                            <span className={`px-1 rounded border leading-none font-black ${rBadgeColor}`}>{r.rival.clearType}</span>
+                            <span className={`px-1 rounded border leading-none font-black ${rBadgeColor} shrink-0`}>{r.rival.clearType}</span>
                           )}
                         </div>
-                        <div className={`font-black font-mono text-xl leading-none ${r.pointChange > 0 ? "text-cyan-500" : "text-slate-500"}`}>
+                        <div className={`font-black font-mono text-xl leading-none shrink-0 ml-2 ${r.pointChange > 0 ? "text-cyan-500" : "text-slate-500"}`}>
                           {r.pointChange > 0 ? "+" : ""}{r.pointChange.toFixed(2)}
                         </div>
                       </div>

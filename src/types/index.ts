@@ -20,6 +20,7 @@ export interface PlayResult {
   miss: number;
   perfect: number;
   clearType: "CLEAR" | "FC" | "AP" | "FAILED";
+  accuracy: string; // 達成率
   updatedAt: number;
 }
 

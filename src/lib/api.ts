@@ -26,7 +26,12 @@ export async function fetchSongs(onProgress?: (loaded: number, total: number) =>
         skipEmptyLines: true,
         step: (row) => {
           loadedCount++;
+          // 楽曲名が存在する場合のみ追加
           if (row.data["楽曲名"] && row.data["楽曲名"].trim() !== "") {
+            // '*' が含まれる場合はそれ以降（内部管理用コメント等）をカット
+            if (row.data["楽曲名"].includes("*")) {
+              row.data["楽曲名"] = row.data["楽曲名"].split("*")[0].trim();
+            }
             parsedSongs.push(row.data);
           }
           
