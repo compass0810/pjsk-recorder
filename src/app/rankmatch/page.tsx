@@ -25,15 +25,18 @@ export default function RankMatchRecorder() {
   }, []);
 
   const stats = useMemo(() => {
-    let win = 0, lose = 0, draw = 0;
+    let win = 0, lose = 0, draw = 0, aps = 0;
     let totalPoints = 0;
     records.forEach(r => {
       if (r.result === "WIN") win++;
       else if (r.result === "LOSE") lose++;
       else draw++;
+
+      if (r.you.clearType === "AP") aps++;
+
       totalPoints += r.pointChange;
     });
-    return { matches: records.length, win, lose, draw, points: totalPoints };
+    return { matches: records.length, win, lose, draw, aps, points: totalPoints };
   }, [records]);
 
   const songOptions = useMemo(() => songs.map(s => s.楽曲名), [songs]);
@@ -80,10 +83,17 @@ export default function RankMatchRecorder() {
       }
     }
 
-    return { result, yPenalty, rPenalty, pointChange, pClearType };
+    let rClearType: "AP" | "FC" | "CLEAR" | "FAILED" = "CLEAR";
+    if (rival.gr === 0 && rival.go === 0 && rival.b === 0 && rival.m === 0) {
+      rClearType = "AP";
+    } else if (rival.go === 0 && rival.b === 0 && rival.m === 0) {
+      rClearType = "FC";
+    }
+
+    return { result, yPenalty, rPenalty, pointChange, pClearType, rClearType };
   };
 
-  const { result: currentResult, yPenalty, rPenalty, pointChange: currentPointChange, pClearType } = calcResult();
+  const { result: currentResult, yPenalty, rPenalty, pointChange: currentPointChange, pClearType, rClearType } = calcResult();
 
   const handleAddRecord = () => {
     if (!selectedSongName) {
@@ -98,7 +108,7 @@ export default function RankMatchRecorder() {
       level: currentLevel as string,
       rivalName: rivalName || "名無し",
       you: { great: you.gr, good: you.go, bad: you.b, miss: you.m, clearType: pClearType },
-      rival: { great: rival.gr, good: rival.go, bad: rival.b, miss: rival.m, clearType: "CLEAR" },
+      rival: { great: rival.gr, good: rival.go, bad: rival.b, miss: rival.m, clearType: rClearType },
       result: currentResult,
       pointChange: currentPointChange
     };
@@ -146,10 +156,14 @@ export default function RankMatchRecorder() {
           <div className="text-sm font-bold text-slate-400 mt-1 uppercase tracking-wider">(2026.4.1 - 6.30)</div>
         </div>
         <div className="flex items-baseline gap-6 text-xl font-bold bg-slate-50/50 px-6 py-2 rounded-xl border border-slate-100 shadow-inner">
-          <div className="flex flex-col items-center"><span className="text-slate-700 text-4xl font-black">{stats.matches}</span><span className="text-xs tracking-widest uppercase text-slate-400">Matches</span></div>
+          <div className="flex flex-col items-center"><span className="text-slate-700 text-4xl font-black">{stats.matches}</span><span className="text-xs tracking-widest uppercase text-slate-400">Match</span></div>
           <div className="flex flex-col items-center"><span className="text-rose-500 text-4xl font-black">{stats.win}</span><span className="text-xs tracking-widest uppercase text-rose-400">Win</span></div>
           <div className="flex flex-col items-center"><span className="text-blue-500 text-4xl font-black">{stats.lose}</span><span className="text-xs tracking-widest uppercase text-blue-400">Lose</span></div>
           <div className="flex flex-col items-center"><span className="text-emerald-500 text-4xl font-black">{stats.draw}</span><span className="text-xs tracking-widest uppercase text-emerald-400">Draw</span></div>
+          <div className="flex flex-col items-center ml-2 border-l-2 border-slate-100 pl-6">
+            <span className="text-4xl font-black bg-clip-text text-transparent bg-gradient-to-r from-pink-400 to-sky-400">{stats.aps}</span>
+            <span className="text-xs tracking-widest uppercase font-bold bg-clip-text text-transparent bg-gradient-to-r from-pink-400 to-sky-400">AP</span>
+          </div>
         </div>
         <div className="flex flex-col items-end mt-4 md:mt-0">
           <div className="text-xs font-black text-slate-400 tracking-widest uppercase mb-1">Current Rate</div>
@@ -191,7 +205,7 @@ export default function RankMatchRecorder() {
             <div className="flex-1 bg-slate-50/80 rounded-lg shadow-sm border border-slate-100 w-full">
               <input
                 type="text" value={rivalName} onChange={e => setRivalName(e.target.value)}
-                placeholder="RIVAL NAME" className="outline-none bg-transparent font-black text-blue-600 uppercase tracking-widest w-full text-base p-3 placeholder:text-slate-300"
+                placeholder="RIVAL NAME" className="outline-none bg-transparent font-black text-blue-600 tracking-widest w-full text-base p-3 placeholder:text-slate-300"
               />
             </div>
           </div>
@@ -287,7 +301,8 @@ export default function RankMatchRecorder() {
               const isWin = r.result === "WIN";
               const isLose = r.result === "LOSE";
 
-              const badgeColor = r.you.clearType === "AP" ? "border-sky-400 text-sky-500 bg-sky-50" : r.you.clearType === "FC" ? "border-pink-400 text-pink-500 bg-pink-50" : "border-slate-300 text-slate-400 bg-slate-50";
+              const badgeColor = r.you.clearType === "AP" ? "border-sky-400 text-sky-500 bg-sky-50" : r.you.clearType === "FC" ? "border-pink-400 text-pink-500 bg-pink-50" : r.you.clearType === "FAILED" ? "border-red-400 text-red-500 bg-red-50" : "border-slate-300 text-slate-400 bg-slate-50";
+              const rBadgeColor = r.rival.clearType === "AP" ? "border-sky-400 text-sky-500 bg-sky-50" : r.rival.clearType === "FC" ? "border-pink-400 text-pink-500 bg-pink-50" : "border-slate-300 text-slate-400 bg-slate-50";
 
               return (
                 <div key={r.id} className="bg-white rounded-xl p-3 shadow-sm border border-slate-100 relative group transition-all hover:shadow-md">
@@ -306,10 +321,13 @@ export default function RankMatchRecorder() {
                           {r.you.clearType !== "CLEAR" && (
                             <span className={`px-1 rounded border leading-none font-black ${badgeColor}`}>{r.you.clearType}</span>
                           )}
-                          <span className={yPen > 0 ? "text-rose-500 font-black font-mono text-sm" : "text-sm"}>{yPen > 0 ? `-${yPen}` : ""}</span>
+                          <span className={yPen > 0 ? "text-rose-500 font-black font-mono text-sm" : "text-sm font-black font-mono"}>{yPen > 0 ? `-${yPen}` : "0"}</span>
                           <span className="mx-1 text-slate-400 text-[10px] italic">vs</span>
                           <span className="font-bold text-slate-600 truncate max-w-[150px] text-xs">{r.rivalName || "RIVAL"}</span>
-                          <span className={rPen > 0 ? "text-blue-500 font-black font-mono ml-1 text-sm" : "ml-1 text-sm"}>{rPen > 0 ? `-${rPen}` : ""}</span>
+                          <span className={rPen > 0 ? "text-blue-500 font-black font-mono ml-1 text-sm" : "ml-1 text-sm font-black font-mono"}>{rPen > 0 ? `-${rPen}` : "0"}</span>
+                          {r.rival.clearType !== "CLEAR" && (
+                            <span className={`px-1 rounded border leading-none font-black ${rBadgeColor}`}>{r.rival.clearType}</span>
+                          )}
                         </div>
                         <div className={`font-black font-mono text-xl leading-none ${r.pointChange > 0 ? "text-cyan-500" : "text-slate-500"}`}>
                           {r.pointChange > 0 ? "+" : ""}{r.pointChange.toFixed(2)}

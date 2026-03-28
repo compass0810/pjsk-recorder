@@ -37,7 +37,7 @@ body {
   background-attachment: fixed;
   color: var(--foreground);
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-  min-height: 100vh;
+  min-height: 100dvh;
   overflow: hidden; /* スクロールは各要素で行う */
 }
 

@@ -17,7 +17,7 @@ export default function Sidebar() {
   ];
 
   return (
-    <aside className={`${isOpen ? 'w-70' : 'w-20'} min-h-screen bg-white/40 backdrop-blur-md border-r border-white/50 flex flex-col shadow-[4px_0_24px_rgba(0,0,0,0.05)] relative z-10 transition-all duration-300 pointer-events-auto`}>
+    <aside className={`${isOpen ? 'w-70' : 'w-20'} min-h-[100dvh] bg-white/40 backdrop-blur-md border-r border-white/50 flex flex-col shadow-[4px_0_24px_rgba(0,0,0,0.05)] relative z-10 transition-all duration-300 pointer-events-auto`}>
 
       {/* 開閉ボタン */}
       <button
