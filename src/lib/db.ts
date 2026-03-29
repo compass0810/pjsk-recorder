@@ -7,10 +7,13 @@ import { RankMatchRecord, PlayResult, Bug, BugComment } from "../types";
 let cachedUserId: string | null = null;
 
 const getUserId = async () => {
+  // null をキャッシュしないようにする（認証完了前に呼ばれた場合の対策）
   if (cachedUserId) return cachedUserId;
   const { data: { user } } = await supabase.auth.getUser();
-  cachedUserId = user?.id || null;
-  return cachedUserId;
+  if (user?.id) {
+    cachedUserId = user.id;
+  }
+  return user?.id || null;
 };
 
 export const db = {
@@ -68,7 +71,7 @@ export const db = {
     },
     upsert: async (r: PlayResult) => {
       const userId = await getUserId();
-      if (!userId) return;
+      if (!userId) throw new Error("Not authenticated");
       
       const { error } = await supabase.from("play_results").upsert({
         user_id: userId,
