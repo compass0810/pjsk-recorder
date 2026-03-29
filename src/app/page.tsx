@@ -416,19 +416,56 @@ export default function ResultRecorder() {
       };
     });
 
-    await db.playResults.upsertMany(batchData);
+    try {
+      await db.playResults.upsertMany(batchData);
 
-    const newResults = { ...results };
-    batchData.forEach(r => {
-      newResults[`${r.songNo}-${r.difficulty}`] = r;
-    });
-    setResults(newResults);
+      const newResults = { ...results };
+      batchData.forEach(r => {
+        newResults[`${r.songNo}-${r.difficulty}`] = r;
+      });
+      setResults(newResults);
 
-    setIsProcessingBatch(false);
-    setIsBatchModalOpen(false);
-    setToastMessage(`${listEntries.length} 件を一括 AP 保存しました！`);
+      setIsProcessingBatch(false);
+      setIsBatchModalOpen(false);
+      setToastMessage(`${listEntries.length} 件を一括 AP 保存しました！`);
+    } catch (e) {
+      console.error("Batch AP Error:", e);
+      setIsProcessingBatch(false);
+      setToastMessage("一括保存に失敗しました。再試行してください。");
+    }
     setTimeout(() => setToastMessage(""), 3000);
   };
+
+  const handleExportCSV = useCallback(() => {
+    const header = ["楽曲No","楽曲名","難易度","レベル","クリアタイプ","PERFECT","GREAT","GOOD","BAD","MISS","達成率","最終更新"];
+    const rows = listEntries.map(e => {
+      const key = `${e.song.No}-${e.diff}`;
+      const r = results[key];
+      if (!r) return [e.song.No, e.song.楽曲名, e.diff, e.level, "", "", "", "", "", "", "", ""];
+      return [
+        e.song.No,
+        e.song.楽曲名,
+        e.diff,
+        e.level,
+        r.clearType,
+        r.perfect,
+        r.great,
+        r.good,
+        r.bad,
+        r.miss,
+        r.accuracy,
+        new Date(r.updatedAt).toLocaleString('ja-JP')
+      ];
+    });
+    const csv = [header, ...rows].map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); 
+    a.href = url; 
+    a.download = `pjsk_results_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [listEntries, results]);
 
   if (isLoading) {
     const pct = loadingProgress.total === 0 ? 0 : Math.round((loadingProgress.loaded / loadingProgress.total) * 100);
@@ -464,6 +501,13 @@ export default function ResultRecorder() {
           <div className="flex justify-between items-center mb-1">
             <h2 className="text-xl font-black text-slate-800 tracking-tight">Songs</h2>
             <div className="flex items-center gap-2">
+              <button 
+                onClick={handleExportCSV}
+                className="text-[10px] font-black px-2 py-1 bg-white text-emerald-500 border border-emerald-200 rounded-lg hover:bg-emerald-50 transition-all uppercase tracking-tighter shadow-sm"
+                title="現在の一覧をCSVでエクスポート"
+              >
+                CSV
+              </button>
               <button 
                 onClick={() => setIsQuickAPMode(!isQuickAPMode)}
                 className={`text-[10px] font-black px-2 py-1 rounded-lg transition-all uppercase tracking-tighter shadow-sm border

@@ -48,13 +48,23 @@ CREATE TABLE public.play_results (
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
--- 検索を高速化するためのインデックス (ユーザーごと、曲ごと)
-CREATE INDEX idx_play_results_user_song ON public.play_results(user_id, song_no, difficulty);
+-- 検索を高速化するためのインデックス
+-- upsert を機能させるために UNIQUE 索引に変更
+CREATE UNIQUE INDEX idx_play_results_user_song_diff ON public.play_results(user_id, song_no, difficulty);
 
 -- RLS
 ALTER TABLE public.play_results ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "ユーザーは自分の通常リザルトのみ参照可能" ON public.play_results FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "ユーザーは自分の通常リザルトのみ管理可能" ON public.play_results FOR ALL USING (auth.uid() = user_id);
+
+-- 操作別ポリシー
+CREATE POLICY "play_results_select_own" ON public.play_results FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "play_results_insert_own" ON public.play_results FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "play_results_update_own" ON public.play_results FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "play_results_delete_own" ON public.play_results FOR DELETE USING (auth.uid() = user_id);
+
+-- 管理者は全リザルトを参照可能
+CREATE POLICY "play_results_select_admin" ON public.play_results FOR SELECT USING (
+  EXISTS (SELECT 1 FROM public.profiles WHERE user_id = auth.uid() AND is_admin = true)
+);
 
 -- ==========================================
 -- 3. rankmatch_records テーブル (ランクマッチ戦績)
@@ -210,3 +220,18 @@ BEGIN
     );
 END;
 $$;
+
+-- ==========================================
+-- 9. 管理者向け RLS ポリシー追加
+-- (既存の RLS に追加して実行してください)
+-- ==========================================
+
+-- play_results: 管理者は全レコードを参照可能
+CREATE POLICY "管理人は全リザルトを参照可能" ON public.play_results FOR SELECT USING (
+  EXISTS (SELECT 1 FROM public.profiles WHERE user_id = auth.uid() AND is_admin = true)
+);
+
+-- rankmatch_records: 管理者は全レコードを参照可能
+CREATE POLICY "管理人は全ランクマを参照可能" ON public.rankmatch_records FOR SELECT USING (
+  EXISTS (SELECT 1 FROM public.profiles WHERE user_id = auth.uid() AND is_admin = true)
+);

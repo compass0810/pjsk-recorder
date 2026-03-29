@@ -197,15 +197,19 @@ export default function RankMatchRecorder() {
       pointChange: currentPointChange
     };
 
-    await db.rankMatch.insert(newRecord);
-    setRecords([newRecord, ...records]);
+    try {
+      await db.rankMatch.insert(newRecord);
+      setRecords([newRecord, ...records]);
 
-    setToastMessage("戦績を記録しました！");
+      setToastMessage("戦績を記録しました！");
+      setYou({ gr: 0, go: 0, b: 0, m: 0, isZeroLife: false });
+      setRival({ gr: 0, go: 0, b: 0, m: 0 });
+      setRivalName("");
+    } catch (e) {
+      console.error("Rank Match Save Error:", e);
+      setToastMessage("保存に失敗しました。再試行してください。");
+    }
     setTimeout(() => setToastMessage(""), 3000);
-
-    setYou({ gr: 0, go: 0, b: 0, m: 0, isZeroLife: false });
-    setRival({ gr: 0, go: 0, b: 0, m: 0 });
-    setRivalName("");
   };
 
   const handleDelete = async (id: string) => {
@@ -240,6 +244,39 @@ export default function RankMatchRecorder() {
 
     setToastMessage("設定を保存しました");
     setTimeout(() => setToastMessage(""), 3000);
+  };
+
+  const handleExportCSV = () => {
+    const header = ["日時","楽曲名","難易度","レベル","対戦相手","自分PERFECT","自分GREAT","自分GOOD","自分BAD","自分MISS","自分ClearType","相手PERFECT","相手GREAT","相手GOOD","相手BAD","相手MISS","相手ClearType","結果","ポイント変動"];
+    const rows = records.map(r => [
+      new Date(r.timestamp).toLocaleString('ja-JP'),
+      r.songName,
+      r.difficulty,
+      r.level,
+      r.rivalName || "名無し",
+      r.you.perfect,
+      r.you.great,
+      r.you.good,
+      r.you.bad,
+      r.you.miss,
+      r.you.clearType,
+      r.rival.perfect,
+      r.rival.great,
+      r.rival.good,
+      r.rival.bad,
+      r.rival.miss,
+      r.rival.clearType,
+      r.result,
+      r.pointChange > 0 ? `+${r.pointChange}` : r.pointChange
+    ]);
+    const csv = [header, ...rows].map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); 
+    a.href = url;
+    a.download = `pjsk_rankmatch_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const youBarWidth = Math.max(5, (yPenalty / (yPenalty + rPenalty || 1)) * 100);
@@ -500,7 +537,17 @@ export default function RankMatchRecorder() {
 
         {/* 右（縦）: 履歴リスト */}
         <div className="xl:w-[40%] flex flex-col bg-white/60 backdrop-blur-xl rounded-[1.5rem] shadow-xl border border-white shrink-0 p-5 overflow-hidden animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
-          <h3 className="text-sm font-black text-slate-800 mb-3 px-2 border-b-2 border-slate-200 pb-1 uppercase tracking-widest">Record History</h3>
+          <div className="flex items-center justify-between mb-3 px-2 border-b-2 border-slate-200 pb-1">
+            <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Record History</h3>
+            <button
+              onClick={handleExportCSV}
+              disabled={records.length === 0}
+              className="text-[10px] font-black px-2 py-1 bg-white text-emerald-500 border border-emerald-200 rounded-lg hover:bg-emerald-50 disabled:opacity-30 transition-all uppercase tracking-tighter shadow-sm"
+              title="放戦履歴をCSVでエクスポート"
+            >
+              CSV
+            </button>
+          </div>
           <div className="flex-1 overflow-y-auto space-y-2.5 pr-1">
             {records.length === 0 && <p className="text-center text-slate-400 mt-10 font-bold text-sm">No Records</p>}
             {records.map(r => {

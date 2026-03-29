@@ -87,7 +87,10 @@ export const db = {
         updated_at: new Date(r.updatedAt).toISOString()
       }, { onConflict: 'user_id,song_no,difficulty' });
       
-      if (error) console.error("Save Error:", error);
+      if (error) {
+        console.error("Save Error:", error);
+        throw error;
+      }
     },
     upsertMany: async (results: PlayResult[]) => {
       const userId = await getUserId();
@@ -108,7 +111,10 @@ export const db = {
       }));
 
       const { error } = await supabase.from("play_results").upsert(rows, { onConflict: 'user_id,song_no,difficulty' });
-      if (error) console.error("Batch Save Error:", error);
+      if (error) {
+        console.error("Batch Save Error:", error);
+        throw error;
+      }
     },
     delete: async (songNo: string, difficulty: string) => {
       const userId = await getUserId();
@@ -276,6 +282,46 @@ export const db = {
         return { db_size_bytes: 0, total_rows: 0 };
       }
       return data;
+    },
+    getAllPlayResults: async () => {
+      // ステップ1: 全リザルトを取得
+      const { data, error } = await supabase
+        .from("play_results")
+        .select("*")
+        .order("updated_at", { ascending: false })
+        .limit(2000);
+      if (error) { console.error("getAllPlayResults Error:", error.message, error); return []; }
+      if (!data || data.length === 0) return [];
+
+      // ステップ2: 登場するユーザーIDのプロファイルを取得
+      const userIds = [...new Set(data.map((r: any) => r.user_id))];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, username, custom_id")
+        .in("user_id", userIds);
+      const profileMap = Object.fromEntries((profiles || []).map((p: any) => [p.user_id, p]));
+
+      return data.map((r: any) => ({ ...r, profiles: profileMap[r.user_id] || null }));
+    },
+    getAllRankMatches: async () => {
+      // ステップ1: 全ランクマ記録を取得
+      const { data, error } = await supabase
+        .from("rankmatch_records")
+        .select("*")
+        .order("timestamp", { ascending: false })
+        .limit(2000);
+      if (error) { console.error("getAllRankMatches Error:", error.message, error); return []; }
+      if (!data || data.length === 0) return [];
+
+      // ステップ2: 登場するユーザーIDのプロファイルを取得
+      const userIds = [...new Set(data.map((r: any) => r.user_id))];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, username, custom_id")
+        .in("user_id", userIds);
+      const profileMap = Object.fromEntries((profiles || []).map((p: any) => [p.user_id, p]));
+
+      return data.map((r: any) => ({ ...r, profiles: profileMap[r.user_id] || null }));
     },
     getMaintenance: async () => {
       const { data } = await supabase.from("system_config").select("value").eq("key", "maintenance").single();
