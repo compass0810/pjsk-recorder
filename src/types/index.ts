@@ -44,6 +44,7 @@ export interface Bug {
   title: string;
   content: string;
   level: 1 | 2 | 3;
+  category: 'bug' | 'request';
   status: 'open' | 'investigating' | 'resolved';
   createdAt: number;
   updatedAt: number;

@@ -23,8 +23,8 @@ export default function Sidebar() {
     { label: "ランクマレコーダー", short: "RM", path: "/rankmatch" },
     { label: "譜面メーカー情報", short: "MK", path: "/maker" },
     { label: "アップデートログ", short: "LG", path: "/log" },
-    { label: "注意事項", short: "NT", path: "/notice" },
-    { label: "不具合報告", short: "BG", path: "/bugs" },
+    { label: "使い方・注意事項", short: "NOTE", path: "/notice" },
+    { label: "不具合報告・要望", short: "BG", path: "/bugs" },
     { label: "アカウント", short: "AC", path: "/account" },
   ];
 
@@ -39,13 +39,13 @@ export default function Sidebar() {
         onClick={() => setIsOpen(!isOpen)}
         className="absolute -right-3.5 top-8 w-7 h-7 bg-white rounded-full border border-slate-200 shadow-lg flex items-center justify-center text-slate-400 hover:text-cyan-500 hover:border-cyan-300 transition-all z-20 active:scale-90"
       >
-        <svg 
-          viewBox="0 0 24 24" 
-          fill="none" 
-          stroke="currentColor" 
-          strokeWidth="4" 
-          strokeLinecap="round" 
-          strokeLinejoin="round" 
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
           className={`w-3 h-3 transition-transform duration-500 ${isOpen ? '' : 'rotate-180'}`}
         >
           <polyline points="15 18 9 12 15 6" />

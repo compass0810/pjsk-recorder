@@ -15,6 +15,7 @@ CREATE TABLE public.profiles (
   base_draw integer NOT NULL DEFAULT 0,
   base_aps integer NOT NULL DEFAULT 0,
   is_admin boolean NOT NULL DEFAULT false,
+  hide_email boolean NOT NULL DEFAULT false,
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   CONSTRAINT profiles_pkey PRIMARY KEY (id),
@@ -119,6 +120,7 @@ CREATE TABLE public.bugs (
   title text NOT NULL,
   content text NOT NULL,
   level integer NOT NULL DEFAULT 1, -- 1: 低, 2: 中, 3: 高
+  category text NOT NULL DEFAULT 'bug', -- 'bug', 'request'
   status text NOT NULL DEFAULT 'open', -- 'open', 'investigating', 'resolved'
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now())

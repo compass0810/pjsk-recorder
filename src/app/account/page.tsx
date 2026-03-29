@@ -7,7 +7,9 @@ import { User } from "@supabase/supabase-js";
 interface Profile {
   user_no: number;
   username: string;
+  username: string;
   custom_id: string;
+  hide_email: boolean;
 }
 
 export default function AccountPage() {
@@ -19,6 +21,7 @@ export default function AccountPage() {
 
   const [editUsername, setEditUsername] = useState("");
   const [editCustomId, setEditCustomId] = useState("");
+  const [hideEmail, setHideEmail] = useState(false);
 
   useEffect(() => {
     // 認証状態の監視
@@ -48,7 +51,7 @@ export default function AccountPage() {
   const fetchProfile = async (userId: string) => {
     const { data, error } = await supabase
       .from("profiles")
-      .select("user_no, username, custom_id")
+      .select("user_no, username, custom_id, hide_email")
       .eq("user_id", userId)
       .single();
 
@@ -69,6 +72,7 @@ export default function AccountPage() {
       setProfile(data as Profile);
       setEditUsername(data.username || "");
       setEditCustomId(data.custom_id || "");
+      setHideEmail(!!data.hide_email);
     }
   };
 
@@ -94,6 +98,7 @@ export default function AccountPage() {
       .update({
         username: editUsername,
         custom_id: editCustomId,
+        hide_email: hideEmail,
       })
       .eq("user_id", user.id);
 
@@ -102,7 +107,7 @@ export default function AccountPage() {
     } else {
       showToast("プロフィールを更新しました！");
       if (profile) {
-        setProfile({ ...profile, username: editUsername, custom_id: editCustomId });
+        setProfile({ ...profile, username: editUsername, custom_id: editCustomId, hide_email: hideEmail });
       }
     }
     setSaving(false);
@@ -178,7 +183,9 @@ export default function AccountPage() {
                 </div>
                 <div className="space-y-1">
                   <h3 className="text-xl font-black text-slate-800">{profile?.username || "---"}</h3>
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{user.email}</p>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                    {profile?.hide_email ? user.email?.replace(/(.{2})(.*)(?=@)/, (gp1, gp2, gp3) => gp2 + "*".repeat(gp3.length)) : user.email}
+                  </p>
                 </div>
 
                 <div className="w-full pt-4 border-t border-slate-100 flex flex-col items-center">
@@ -231,6 +238,19 @@ export default function AccountPage() {
                       />
                     </div>
                     <p className="text-[10px] text-slate-400 font-bold ml-1 italic">※ 英数字とアンダースコアのみ使用可能です</p>
+                  </div>
+
+                  <div className="p-6 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-black text-slate-700">メールアドレスを非表示にする</h3>
+                      <p className="text-[10px] text-slate-400 font-bold">プロフィール上の表示をマスク処理します</p>
+                    </div>
+                    <button
+                      onClick={() => setHideEmail(!hideEmail)}
+                      className={`w-12 h-6 rounded-full p-1 transition-all duration-300 relative ${hideEmail ? "bg-cyan-500" : "bg-slate-300"}`}
+                    >
+                      <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-all duration-300 transform ${hideEmail ? "translate-x-6" : "translate-x-0"}`} />
+                    </button>
                   </div>
                 </div>
 

@@ -26,6 +26,11 @@ export const db = {
         base_draw: stats.draw, 
         base_aps: stats.aps 
       }).eq("user_id", user.id);
+    },
+    updateSettings: async (settings: { hide_email: boolean }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      await supabase.from("profiles").update({ hide_email: settings.hide_email }).eq("user_id", user.id);
     }
   },
 
@@ -92,6 +97,11 @@ export const db = {
 
       const { error } = await supabase.from("play_results").upsert(rows, { onConflict: 'user_id,song_no,difficulty' });
       if (error) console.error("Batch Save Error:", error);
+    },
+    delete: async (songNo: string, difficulty: string) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      await supabase.from("play_results").delete().eq("user_id", user.id).eq("song_no", songNo).eq("difficulty", difficulty);
     }
   },
 
@@ -173,6 +183,7 @@ export const db = {
         title: b.title,
         content: b.content,
         level: b.level as 1 | 2 | 3,
+        category: b.category as 'bug' | 'request',
         status: b.status as any,
         createdAt: new Date(b.created_at).getTime(),
         updatedAt: new Date(b.updated_at).getTime()
@@ -187,6 +198,7 @@ export const db = {
         title: bug.title,
         content: bug.content,
         level: bug.level,
+        category: bug.category || 'bug',
         status: 'open'
       }).select().single();
       if (error) throw error;

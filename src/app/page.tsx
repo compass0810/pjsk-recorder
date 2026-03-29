@@ -84,6 +84,9 @@ SongListItem.displayName = "SongListItem";
 export default function ResultRecorder() {
   const [songs, setSongs] = useState<Song[]>([]);
   const [results, setResults] = useState<Record<string, PlayResult>>({});
+  const [lastSavedResult, setLastSavedResult] = useState<PlayResult | null>(null);
+  const [showUndo, setShowUndo] = useState(false);
+  const [undoProgress, setUndoProgress] = useState(100);
   const [selectedEntry, setSelectedEntry] = useState<ListEntry | null>(null);
 
   // フィルター用ステート
@@ -245,14 +248,88 @@ export default function ResultRecorder() {
     };
 
     if (isLoggedIn) {
+      const prevResult = results[resultKey];
+      setLastSavedResult(prevResult || null);
+      
       await db.playResults.upsert(newResult);
       setResults(prev => ({ ...prev, [resultKey]: newResult }));
-      setToastMessage("クラウドに記録を保存しました！");
+      
+      // Undo ポップアップを表示
+      setShowUndo(true);
+      setUndoProgress(100);
+      setToastMessage("記録を保存しました！");
     } else {
       setToastMessage("保存に失敗しました。ログイン状態を確認してください。");
     }
     setTimeout(() => setToastMessage(""), 3000);
   };
+
+  // Undo 処理
+  const handleUndo = async () => {
+    if (!selectedEntry || !showUndo) return;
+    const resultKey = `${selectedEntry.song.No}-${selectedEntry.diff}`;
+    
+    if (lastSavedResult) {
+      await db.playResults.upsert(lastSavedResult);
+      setResults(prev => ({ ...prev, [resultKey]: lastSavedResult }));
+      setInputs({ 
+        great: lastSavedResult.great, 
+        good: lastSavedResult.good, 
+        bad: lastSavedResult.bad, 
+        miss: lastSavedResult.miss 
+      });
+    } else {
+      await db.playResults.delete(selectedEntry.song.No, selectedEntry.diff);
+      setResults(prev => {
+        const next = { ...prev };
+        delete next[resultKey];
+        return next;
+      });
+      setInputs({ great: 0, good: 0, bad: 0, miss: 0 });
+    }
+    
+    setShowUndo(false);
+    setToastMessage("変更を取り消しました。");
+    setTimeout(() => setToastMessage(""), 3000);
+  };
+
+  // リセット処理
+  const handleResetRecord = async () => {
+    if (!selectedEntry || !isLoggedIn) return;
+    if (!confirm("この譜面の記録を完全に消去しますか？\nこの操作は取り消せません。")) return;
+
+    const resultKey = `${selectedEntry.song.No}-${selectedEntry.diff}`;
+    await db.playResults.delete(selectedEntry.song.No, selectedEntry.diff);
+    
+    setResults(prev => {
+      const next = { ...prev };
+      delete next[resultKey];
+      return next;
+    });
+    setInputs({ great: 0, good: 0, bad: 0, miss: 0 });
+    setToastMessage("記録をリセットしました。");
+    setTimeout(() => setToastMessage(""), 3000);
+  };
+
+  // Undo タイマー
+  useEffect(() => {
+    if (!showUndo) return;
+    const startTime = Date.now();
+    const duration = 5000;
+    
+    const timer = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const remaining = Math.max(0, 100 - (elapsed / duration) * 100);
+      setUndoProgress(remaining);
+      
+      if (elapsed >= duration) {
+        setShowUndo(false);
+        clearInterval(timer);
+      }
+    }, 50);
+
+    return () => clearInterval(timer);
+  }, [showUndo]);
 
   const handleQuickAP = useCallback(async (entry: ListEntry) => {
     if (!isLoggedIn) {
@@ -497,6 +574,13 @@ export default function ResultRecorder() {
 
                 <div className="mt-8 flex gap-4 h-16">
                   <button
+                    onClick={handleResetRecord}
+                    className="w-16 h-16 bg-slate-100 text-slate-400 rounded-2xl flex items-center justify-center hover:bg-rose-50 hover:text-rose-500 transition-all border border-slate-200/50 group"
+                    title="記録をリセット"
+                  >
+                    <span className="text-xs font-black uppercase tracking-tighter group-hover:scale-95 transition-transform">Reset</span>
+                  </button>
+                  <button
                     onClick={handleSave}
                     className="flex-1 bg-gradient-to-br from-cyan-400 to-blue-500 text-white rounded-2xl shadow-lg shadow-cyan-500/30 font-black tracking-widest text-xl hover:shadow-cyan-500/50 hover:-translate-y-0.5 active:translate-y-0 transition-all cursor-pointer"
                   >
@@ -508,6 +592,25 @@ export default function ResultRecorder() {
           </div>
         )}
       </div>
+
+      {/* Undo ポップアップ */}
+      {showUndo && (
+        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] animate-fade-in-up">
+          <div className="bg-slate-900 border border-white/20 shadow-2xl rounded-2xl p-4 flex items-center gap-6 text-white min-w-[320px] relative overflow-hidden">
+            <div className="flex-1">
+              <div className="text-[10px] font-black text-white/50 uppercase tracking-widest mb-1">Recent Change</div>
+              <div className="text-sm font-bold truncate max-w-[200px]">{selectedEntry?.song.楽曲名} ({selectedEntry?.diff})</div>
+            </div>
+            <button 
+              onClick={handleUndo}
+              className="bg-white text-slate-900 px-6 py-2 rounded-xl font-black text-xs hover:bg-cyan-400 hover:text-white transition-all active:scale-95"
+            >
+              UNDO (取り消す)
+            </button>
+            <div className="absolute bottom-0 left-0 h-1 bg-gradient-to-r from-cyan-400 to-blue-500 transition-all duration-75" style={{ width: `${undoProgress}%` }} />
+          </div>
+        </div>
+      )}
 
       {/* 一括 AP 確認モーダル */}
       {isBatchModalOpen && (

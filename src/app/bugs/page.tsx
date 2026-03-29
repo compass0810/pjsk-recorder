@@ -17,7 +17,7 @@ export default function BugsPage() {
   
   // 新規投稿用
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [newBug, setNewBug] = useState({ title: "", content: "", level: 1 as 1 | 2 | 3 });
+  const [newBug, setNewBug] = useState({ title: "", content: "", level: 1 as 1 | 2 | 3, category: 'bug' as 'bug' | 'request' });
   
   // コメント投稿用
   const [newComment, setNewComment] = useState("");
@@ -72,11 +72,12 @@ export default function BugsPage() {
         title: newBug.title,
         content: newBug.content,
         level: newBug.level,
+        category: newBug.category,
         userId: "" // DB側で取得
       });
-      setToastMessage("不具合を報告しました。");
+      setToastMessage(newBug.category === 'bug' ? "不具合を報告しました。" : "要望を送信しました！");
       setIsCreateModalOpen(false);
-      setNewBug({ title: "", content: "", level: 1 });
+      setNewBug({ title: "", content: "", level: 1, category: 'bug' });
       loadData();
     } catch (e) {
       setToastMessage("エラーが発生しました。");
@@ -150,6 +151,14 @@ export default function BugsPage() {
     }
   };
 
+  const getCategoryLabel = (category: string) => {
+    switch (category) {
+      case 'bug': return { label: "BUG", color: "bg-rose-500 text-white" };
+      case 'request': return { label: "REQUEST", color: "bg-blue-500 text-white" };
+      default: return { label: "BUG", color: "bg-rose-500 text-white" };
+    }
+  };
+
   return (
     <div className="flex h-full p-6 lg:p-10 gap-8 absolute inset-0 overflow-hidden bg-slate-50">
       
@@ -170,15 +179,15 @@ export default function BugsPage() {
         <div className="p-8 border-b border-white/50 bg-gradient-to-r from-slate-50 to-white">
           <div className="flex justify-between items-center mb-6">
             <div>
-              <h1 className="text-3xl font-black text-slate-800 tracking-tighter">Bugs & Reports</h1>
-              <p className="text-slate-400 font-bold text-sm">不具合の報告と解決状況の確認</p>
+              <h1 className="text-3xl font-black text-slate-800 tracking-tighter">Bugs & Requests</h1>
+              <p className="text-slate-400 font-bold text-sm">不具合の報告・要望と解決状況の確認</p>
             </div>
             {isLoggedIn && (
               <button 
                 onClick={() => setIsCreateModalOpen(true)}
                 className="bg-slate-800 text-white px-6 py-3 rounded-2xl font-black shadow-lg shadow-slate-200 hover:scale-105 active:scale-95 transition-all text-sm"
               >
-                REPORT NEW BUG
+                NEW REPORT / REQUEST
               </button>
             )}
           </div>
@@ -225,6 +234,9 @@ export default function BugsPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 mb-1">
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded uppercase ${getCategoryLabel(bug.category).color}`}>
+                        {getCategoryLabel(bug.category).label}
+                      </span>
                       <span className={`text-[10px] font-black px-2 py-0.5 rounded uppercase ${lv.color}`}>LEVEL {bug.level}</span>
                       <span className="text-xs font-bold text-slate-400">{new Date(bug.createdAt).toLocaleString()}</span>
                     </div>
@@ -255,9 +267,14 @@ export default function BugsPage() {
             {/* 詳細ヘッダー */}
             <div className="p-8 border-b bg-white relative z-10">
               <div className="flex items-center justify-between mb-4">
-                <span className={`px-3 py-1 rounded-full text-[10px] font-black text-white ${getStatusLabel(selectedBug.status).color}`}>
-                  {getStatusLabel(selectedBug.status).label}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className={`px-3 py-1 rounded-full text-[10px] font-black text-white ${getCategoryLabel(selectedBug.category).color}`}>
+                    {getCategoryLabel(selectedBug.category).label}
+                  </span>
+                  <span className={`px-3 py-1 rounded-full text-[10px] font-black text-white ${getStatusLabel(selectedBug.status).color}`}>
+                    {getStatusLabel(selectedBug.status).label}
+                  </span>
+                </div>
                 <div className="flex items-center gap-2">
                   {isAdmin && (
                     <select 
@@ -352,19 +369,38 @@ export default function BugsPage() {
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in-up">
           <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-xl overflow-hidden flex flex-col border border-white">
              <div className="p-10">
-               <h2 className="text-3xl font-black text-slate-800 mb-2 tracking-tighter">REPORT AN ISSUE</h2>
-               <p className="text-slate-400 font-bold mb-8">不具合の内容を詳しく教えてください</p>
+               <h2 className="text-3xl font-black text-slate-800 mb-2 tracking-tighter">REPORT / REQUEST</h2>
+               <p className="text-slate-400 font-bold mb-8">不具合の内容や、改善の要望を詳しく教えてください</p>
 
                <div className="space-y-6">
-                 <div>
-                   <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Title</label>
-                   <input 
-                     type="text" 
-                     value={newBug.title}
-                     onChange={(e) => setNewBug({...newBug, title: e.target.value})}
-                     placeholder="例: リザルトが保存されない"
-                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 font-bold outline-none focus:ring-2 ring-slate-200"
-                   />
+                 <div className="grid grid-cols-2 gap-4">
+                   <div>
+                     <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Category</label>
+                     <div className="flex bg-slate-50 p-1 rounded-2xl border border-slate-200">
+                       <button 
+                         onClick={() => setNewBug({...newBug, category: 'bug'})}
+                         className={`flex-1 py-2 rounded-xl text-[10px] font-black transition-all ${newBug.category === 'bug' ? 'bg-rose-500 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
+                       >
+                         BUG (不具合)
+                       </button>
+                       <button 
+                         onClick={() => setNewBug({...newBug, category: 'request'})}
+                         className={`flex-1 py-2 rounded-xl text-[10px] font-black transition-all ${newBug.category === 'request' ? 'bg-blue-500 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
+                       >
+                         REQUEST (要望)
+                       </button>
+                     </div>
+                   </div>
+                   <div>
+                     <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Title</label>
+                     <input 
+                       type="text" 
+                       value={newBug.title}
+                       onChange={(e) => setNewBug({...newBug, title: e.target.value})}
+                       placeholder={newBug.category === 'bug' ? "例: リザルトが保存されない" : "例: グラフ機能が欲しい"}
+                       className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs font-bold outline-none focus:ring-2 ring-slate-200"
+                     />
+                   </div>
                  </div>
 
                  <div>
