@@ -87,6 +87,7 @@ export default function ResultRecorder() {
   const [lastSavedResult, setLastSavedResult] = useState<PlayResult | null>(null);
   const [showUndo, setShowUndo] = useState(false);
   const [undoProgress, setUndoProgress] = useState(100);
+  const [undoKey, setUndoKey] = useState(0);
   const [selectedEntry, setSelectedEntry] = useState<ListEntry | null>(null);
 
   // フィルター用ステート
@@ -251,13 +252,29 @@ export default function ResultRecorder() {
       const prevResult = results[resultKey];
       setLastSavedResult(prevResult || null);
       
-      await db.playResults.upsert(newResult);
+      // 楽観的アップデート: UIを先に更新
       setResults(prev => ({ ...prev, [resultKey]: newResult }));
       
-      // Undo ポップアップを表示
-      setShowUndo(true);
+      // Undo ポップアップを表示 (タイマーリセット)
       setUndoProgress(100);
+      setUndoKey(Date.now());
+      setShowUndo(true);
       setToastMessage("記録を保存しました！");
+
+      // バックグラウンドでサーバー保存
+      try {
+        await db.playResults.upsert(newResult);
+      } catch (e) {
+        console.error("Cloud Save Error:", e);
+        // 失敗時はロールバック
+        setResults(prev => {
+          const next = { ...prev };
+          if (prevResult) next[resultKey] = prevResult;
+          else delete next[resultKey];
+          return next;
+        });
+        setToastMessage("クラウド保存に失敗しました。再試行してください。");
+      }
     } else {
       setToastMessage("保存に失敗しました。ログイン状態を確認してください。");
     }
@@ -329,7 +346,7 @@ export default function ResultRecorder() {
     }, 50);
 
     return () => clearInterval(timer);
-  }, [showUndo]);
+  }, [showUndo, undoKey]);
 
   const handleQuickAP = useCallback(async (entry: ListEntry) => {
     if (!isLoggedIn) {
@@ -350,11 +367,36 @@ export default function ResultRecorder() {
       updatedAt: Date.now()
     };
 
-    await db.playResults.upsert(newResult);
+    const prevResult = results[resultKey];
+    setLastSavedResult(prevResult || null);
+    setSelectedEntry(entry);
+
+    // 楽観的アップデート
     setResults(prev => ({ ...prev, [resultKey]: newResult }));
+    
+    // Undo ポップアップを表示
+    setUndoProgress(100);
+    setUndoKey(Date.now());
+    setShowUndo(true);
     setToastMessage(`${entry.song.楽曲名} を AP で保存しました！`);
+
+    // バックグラウンドで保存
+    try {
+      await db.playResults.upsert(newResult);
+    } catch (e) {
+      console.error("Quick AP Save Error:", e);
+      // ロールバック
+      setResults(prev => {
+        const next = { ...prev };
+        if (prevResult) next[resultKey] = prevResult;
+        else delete next[resultKey];
+        return next;
+      });
+      setToastMessage("保存に失敗しました。");
+    }
+
     setTimeout(() => setToastMessage(""), 3000);
-  }, [isLoggedIn, getNotes]);
+  }, [isLoggedIn, results, getNotes]);
 
   const handleBatchAP = async () => {
     if (!isLoggedIn || listEntries.length === 0) return;

@@ -8,10 +8,19 @@ export default function AdminPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [stats, setStats] = useState({ userCount: 0, resultCount: 0, rankMatchCount: 0, bugCount: 0 });
+  const [projectStats, setProjectStats] = useState({ db_size_bytes: 0, total_rows: 0 });
   const [maintenance, setMaintenance] = useState({ active: false, start: "", end: "", type: "regular", reason: "" });
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [toastMessage, setToastMessage] = useState("");
+
+  const formatBytes = (bytes: number) => {
+    if (bytes === 0) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB", "GB", "TB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+  };
 
   useEffect(() => {
     loadData();
@@ -26,12 +35,14 @@ export default function AdminPage() {
       const profile = await db.profile.get();
       if (profile?.is_admin) {
         setIsAdmin(true);
-        const [s, m] = await Promise.all([
+        const [s, m, ps] = await Promise.all([
           db.admin.getStats(),
-          db.admin.getMaintenance()
+          db.admin.getMaintenance(),
+          db.admin.getProjectStats()
         ]);
         setStats(s);
         setMaintenance(m);
+        setProjectStats(ps);
       }
     }
     setIsLoading(false);
@@ -67,6 +78,10 @@ export default function AdminPage() {
     );
   }
 
+  const dbSizeMB = projectStats.db_size_bytes / (1024 * 1024);
+  const dbLimitMB = 500;
+  const dbPercent = Math.min(100, (dbSizeMB / dbLimitMB) * 100);
+
   return (
     <div className="flex flex-col lg:flex-row min-h-screen p-6 lg:p-10 gap-10 bg-slate-50 pb-20">
       
@@ -97,6 +112,45 @@ export default function AdminPage() {
                 <div className="text-3xl font-black font-mono tracking-tighter">{s.val}</div>
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* リソース使用状況 */}
+        <div className="p-8 bg-white/70 backdrop-blur-xl rounded-[2.5rem] shadow-xl border border-white">
+          <h2 className="text-2xl font-black text-slate-800 tracking-tighter mb-6">Cloud Resources</h2>
+          <div className="space-y-6">
+            <div>
+              <div className="flex justify-between items-end mb-2">
+                <div className="text-xs font-black text-slate-400 uppercase tracking-widest">Database Size</div>
+                <div className="text-sm font-black text-slate-800 font-mono">
+                  {formatBytes(projectStats.db_size_bytes)} <span className="text-slate-300 mx-1">/</span> {dbLimitMB} MB
+                </div>
+              </div>
+              <div className="h-3 bg-slate-100 rounded-full overflow-hidden border border-slate-200/50">
+                <div 
+                  className="h-full bg-gradient-to-r from-cyan-400 to-blue-500 transition-all duration-1000"
+                  style={{ width: `${dbPercent}%` }}
+                />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex justify-between items-end mb-2">
+                <div className="text-xs font-black text-slate-400 uppercase tracking-widest">Cumulative Records</div>
+                <div className="text-sm font-black text-slate-800 font-mono">
+                  {projectStats.total_rows.toLocaleString()} <span className="text-slate-300 mx-1">/</span> 50,000 items
+                </div>
+              </div>
+              <div className="h-3 bg-slate-100 rounded-full overflow-hidden border border-slate-200/50">
+                <div 
+                  className="h-full bg-gradient-to-r from-purple-400 to-pink-500 transition-all duration-1000"
+                  style={{ width: `${Math.min(100, (projectStats.total_rows / 50000) * 100)}%` }}
+                />
+              </div>
+              <p className="mt-2 text-[10px] font-bold text-slate-400 leading-tight">
+                ※行数はあくまで目安です。正確なAPIリクエスト数は Supabase Console を確認してください。
+              </p>
+            </div>
           </div>
         </div>
 

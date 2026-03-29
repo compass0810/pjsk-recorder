@@ -176,3 +176,37 @@ CREATE POLICY "管理人のみシステム設定を更新可能" ON public.syste
 );
 
 CREATE TRIGGER update_system_config_modtime BEFORE UPDATE ON public.system_config FOR EACH ROW EXECUTE FUNCTION update_modified_column();
+
+-- ==========================================
+-- 8. 統計用 RPC 関数
+-- ==========================================
+
+-- DATABASE STATS RPC
+-- 管理ページで物理サイズと行数を取得するための関数
+CREATE OR REPLACE FUNCTION get_project_stats()
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    db_size bigint;
+    results_count bigint;
+    ranks_count bigint;
+    bugs_count bigint;
+    users_count bigint;
+BEGIN
+    -- データベース全体の物理サイズを取得 (バイト)
+    db_size := pg_database_size(current_database());
+    
+    -- 各テーブルのカウントを取得
+    SELECT count(*) INTO results_count FROM play_results;
+    SELECT count(*) INTO ranks_count FROM rankmatch_records;
+    SELECT count(*) INTO users_count FROM profiles;
+    SELECT count(*) INTO bugs_count FROM bugs;
+    
+    RETURN jsonb_build_object(
+        'db_size_bytes', db_size,
+        'total_rows', results_count + ranks_count + users_count + bugs_count
+    );
+END;
+$$;

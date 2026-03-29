@@ -4,41 +4,50 @@ import { RankMatchRecord, PlayResult, Bug, BugComment } from "../types";
 // DB Access Layer (Supabase / Cloud Version)
 // 全データはサーバー側でユーザーIDに紐づけて保存されます
 
+let cachedUserId: string | null = null;
+
+const getUserId = async () => {
+  if (cachedUserId) return cachedUserId;
+  const { data: { user } } = await supabase.auth.getUser();
+  cachedUserId = user?.id || null;
+  return cachedUserId;
+};
+
 export const db = {
   profile: {
     get: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return null;
-      const { data } = await supabase.from("profiles").select("*, is_admin").eq("user_id", user.id).single();
+      const userId = await getUserId();
+      if (!userId) return null;
+      const { data } = await supabase.from("profiles").select("*, is_admin").eq("user_id", userId).single();
       return data;
     },
     updatePoints: async (points: number) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      await supabase.from("profiles").update({ base_points: points }).eq("user_id", user.id);
+      const userId = await getUserId();
+      if (!userId) return;
+      await supabase.from("profiles").update({ base_points: points }).eq("user_id", userId);
     },
     updateStats: async (stats: { win: number, lose: number, draw: number, aps: number }) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const userId = await getUserId();
+      if (!userId) return;
       await supabase.from("profiles").update({ 
         base_win: stats.win, 
         base_lose: stats.lose, 
         base_draw: stats.draw, 
         base_aps: stats.aps 
-      }).eq("user_id", user.id);
+      }).eq("user_id", userId);
     },
     updateSettings: async (settings: { hide_email: boolean }) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      await supabase.from("profiles").update({ hide_email: settings.hide_email }).eq("user_id", user.id);
+      const userId = await getUserId();
+      if (!userId) return;
+      await supabase.from("profiles").update({ hide_email: settings.hide_email }).eq("user_id", userId);
     }
   },
 
   playResults: {
     getAll: async (): Promise<Record<string, PlayResult>> => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return {};
-      const { data } = await supabase.from("play_results").select("*").eq("user_id", user.id);
+      const userId = await getUserId();
+      if (!userId) return {};
+      const { data } = await supabase.from("play_results").select("*").eq("user_id", userId);
       
       const results: Record<string, PlayResult> = {};
       data?.forEach(r => {
@@ -58,11 +67,11 @@ export const db = {
       return results;
     },
     upsert: async (r: PlayResult) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const userId = await getUserId();
+      if (!userId) return;
       
       const { error } = await supabase.from("play_results").upsert({
-        user_id: user.id,
+        user_id: userId,
         song_no: r.songNo,
         difficulty: r.difficulty,
         perfect: r.perfect,
@@ -78,11 +87,11 @@ export const db = {
       if (error) console.error("Save Error:", error);
     },
     upsertMany: async (results: PlayResult[]) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user || results.length === 0) return;
+      const userId = await getUserId();
+      if (!userId || results.length === 0) return;
       
       const rows = results.map(r => ({
-        user_id: user.id,
+        user_id: userId,
         song_no: r.songNo,
         difficulty: r.difficulty,
         perfect: r.perfect,
@@ -99,17 +108,17 @@ export const db = {
       if (error) console.error("Batch Save Error:", error);
     },
     delete: async (songNo: string, difficulty: string) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      await supabase.from("play_results").delete().eq("user_id", user.id).eq("song_no", songNo).eq("difficulty", difficulty);
+      const userId = await getUserId();
+      if (!userId) return;
+      await supabase.from("play_results").delete().eq("user_id", userId).eq("song_no", songNo).eq("difficulty", difficulty);
     }
   },
 
   rankMatch: {
     getAll: async (): Promise<RankMatchRecord[]> => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
-      const { data } = await supabase.from("rankmatch_records").select("*").eq("user_id", user.id).order("timestamp", { ascending: false });
+      const userId = await getUserId();
+      if (!userId) return [];
+      const { data } = await supabase.from("rankmatch_records").select("*").eq("user_id", userId).order("timestamp", { ascending: false });
       
       return (data || []).map(r => ({
         id: r.id,
@@ -139,12 +148,12 @@ export const db = {
       }));
     },
     insert: async (r: RankMatchRecord) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const userId = await getUserId();
+      if (!userId) return;
 
       await supabase.from("rankmatch_records").insert({
         id: r.id,
-        user_id: user.id,
+        user_id: userId,
         song_name: r.songName,
         difficulty: r.difficulty,
         level_num: r.level,
@@ -167,9 +176,9 @@ export const db = {
       });
     },
     delete: async (id: string) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      await supabase.from("rankmatch_records").delete().eq("id", id).eq("user_id", user.id);
+      const userId = await getUserId();
+      if (!userId) return;
+      await supabase.from("rankmatch_records").delete().eq("id", id).eq("user_id", userId);
     }
   },
   
@@ -190,10 +199,10 @@ export const db = {
       }));
     },
     create: async (bug: Omit<Bug, 'id' | 'createdAt' | 'updatedAt' | 'status'>) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return null;
+      const userId = await getUserId();
+      if (!userId) return null;
       const { data, error } = await supabase.from("bugs").insert({
-        user_id: user.id,
+        user_id: userId,
         username: bug.username,
         title: bug.title,
         content: bug.content,
@@ -228,11 +237,11 @@ export const db = {
       }));
     },
     add: async (comment: Omit<BugComment, 'id' | 'createdAt'>) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return null;
+      const userId = await getUserId();
+      if (!userId) return null;
       const { data, error } = await supabase.from("bug_comments").insert({
         bug_id: comment.bugId,
-        user_id: user.id,
+        user_id: userId,
         username: comment.username,
         content: comment.content,
         is_dev: comment.isDev
@@ -256,6 +265,14 @@ export const db = {
         rankMatchCount: ranks.count || 0,
         bugCount: bugs.count || 0
       };
+    },
+    getProjectStats: async () => {
+      const { data, error } = await supabase.rpc('get_project_stats');
+      if (error) {
+        console.error("Project Stats RPC Error:", error);
+        return { db_size_bytes: 0, total_rows: 0 };
+      }
+      return data;
     },
     getMaintenance: async () => {
       const { data } = await supabase.from("system_config").select("value").eq("key", "maintenance").single();
