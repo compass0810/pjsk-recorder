@@ -135,6 +135,7 @@ export const db = {
     }
   },
 
+  rankMatch: {
     getAll: async (): Promise<RankMatchRecord[]> => {
       const userId = await getUserId();
       const localRecords = getLocalRankMatchRecords();
