@@ -123,6 +123,9 @@ export default function RankMatchRecorder() {
     };
   }, [records, basePoints, baseStats]);
 
+  const winRateTotal = stats.win + stats.lose;
+  const winRate = winRateTotal > 0 ? (stats.win / winRateTotal * 100).toFixed(1) : "0.0";
+
   const rankInfo = getRankInfo(stats.totalPoints);
 
   const songOptions = useMemo(() => songs.map(s => s.楽曲名), [songs]);
@@ -511,6 +514,10 @@ export default function RankMatchRecorder() {
             <div className="flex flex-col items-center"><span className="text-blue-500 text-3xl md:text-4xl font-black">{stats.lose}</span><span className="text-[10px] tracking-widest uppercase text-blue-400">Lose</span></div>
             <div className="flex flex-col items-center"><span className="text-emerald-500 text-3xl md:text-4xl font-black">{stats.draw}</span><span className="text-[10px] tracking-widest uppercase text-emerald-400">Draw</span></div>
             <div className="flex flex-col items-center ml-2 border-l-2 border-slate-100 pl-4 md:pl-6">
+              <span className="text-3xl md:text-4xl font-black text-rose-500">{winRate}%</span>
+              <span className="text-[10px] tracking-widest uppercase font-bold text-slate-400">Win Rate</span>
+            </div>
+            <div className="flex flex-col items-center ml-2 border-l-2 border-slate-100 pl-4 md:pl-6">
               <span className="text-3xl md:text-4xl font-black bg-clip-text text-transparent bg-gradient-to-r from-pink-400 to-sky-400">{stats.aps}</span>
               <span className="text-[10px] tracking-widest uppercase font-bold bg-clip-text text-transparent bg-gradient-to-r from-pink-400 to-sky-400">AP</span>
             </div>
@@ -730,7 +737,15 @@ export default function RankMatchRecorder() {
                           />
                         </div>
                         <span className={`text-[10px] font-black px-2 py-0.5 rounded text-white ${isWin ? "bg-rose-500" : isLose ? "bg-blue-500" : "bg-emerald-500"}`}>{r.result}</span>
-                        <div className="font-black text-slate-800 truncate leading-tight tracking-tight text-sm flex-1">{r.songName}</div>
+                        <div className="flex items-center gap-1 min-w-0 flex-1">
+                          <span 
+                            className="px-1.5 h-4.5 rounded flex items-center justify-center text-[10px] font-black text-white shrink-0 shadow-sm"
+                            style={{ backgroundColor: r.difficulty === "EXP" ? "var(--color-diff-expert)" : r.difficulty === "MAS" ? "var(--color-diff-master)" : "var(--color-diff-append)" }}
+                          >
+                            {r.level}
+                          </span>
+                          <div className="font-black text-slate-800 truncate leading-tight tracking-tight text-sm">{r.songName}</div>
+                        </div>
                         <div className="flex flex-col items-end gap-0.5 min-w-[70px]">
                           <div className="text-[9px] font-black text-slate-300 font-mono italic text-right">
                             {new Date(r.timestamp).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
