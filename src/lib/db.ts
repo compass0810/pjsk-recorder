@@ -149,7 +149,7 @@ export const db = {
         return localRecords; // Fallback to local
       }
 
-      const cloudRecords = (data || []).map(r => ({
+      const cloudRecords: RankMatchRecord[] = (data || []).map(r => ({
         id: r.id,
         timestamp: Number(r.timestamp),
         songName: r.song_name,
@@ -174,13 +174,21 @@ export const db = {
         },
         result: r.match_result as any,
         pointChange: isNaN(parseFloat(r.point_change)) ? 0 : parseFloat(r.point_change),
-        isCountPoints: r.is_count_points ?? true
+        isCountPoints: r.is_count_points ?? true,
+        isSynced: true
       }));
 
-      // Merge local and cloud (Cloud takes priority, but keep local only if newer and not in cloud)
-      // For simplicity, we just mirror Cloud to Local and return Cloud.
-      setLocalRankMatchRecords(cloudRecords);
-      return cloudRecords;
+      // Merge: Keep all cloud records + add local records that are NOT in cloud yet
+      const merged = [...cloudRecords];
+      localRecords.forEach(local => {
+        if (!merged.find(m => m.id === local.id)) {
+          merged.push({ ...local, isSynced: false });
+        }
+      });
+      
+      const sortedMerged = merged.sort((a, b) => b.timestamp - a.timestamp);
+      setLocalRankMatchRecords(sortedMerged);
+      return sortedMerged;
     },
     insert: async (r: RankMatchRecord) => {
       const userId = await getUserId();
@@ -211,14 +219,18 @@ export const db = {
         rival_miss: r.rival.miss,
         rival_clear_type: r.rival.clearType,
         match_result: r.result,
-        point_change: r.pointChange,
+        point_change: r.pointChange || 0,
         is_count_points: r.isCountPoints !== false,
         timestamp: r.timestamp
       });
 
       if (error) {
         console.error("Cloud RankMatch Insert Error:", error);
-        // Error occurred, but it's already in local.
+        throw error; // Let the UI handle it (but it's already in local)
+      } else {
+        // Mark as synced in local storage
+        const currentLocal = getLocalRankMatchRecords();
+        setLocalRankMatchRecords(currentLocal.map(rec => rec.id === r.id ? { ...rec, isSynced: true } : rec));
       }
     },
     update: async (id: string, r: Partial<RankMatchRecord>) => {

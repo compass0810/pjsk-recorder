@@ -36,6 +36,7 @@ export interface RankMatchRecord {
   result: "WIN" | "LOSE" | "DRAW";
   pointChange: number; // +1.0, -1.0, +1.2 など
   isCountPoints?: boolean; // ポイント計算に含めるかどうか
+  isSynced?: boolean; // クラウドと同期済みかどうか
 }
 
 export interface Bug {

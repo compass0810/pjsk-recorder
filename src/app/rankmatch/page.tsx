@@ -692,8 +692,13 @@ export default function RankMatchRecorder() {
                         </div>
                         <span className={`text-[10px] font-black px-2 py-0.5 rounded text-white ${isWin ? "bg-rose-500" : isLose ? "bg-blue-500" : "bg-emerald-500"}`}>{r.result}</span>
                         <div className="font-black text-slate-800 truncate leading-tight tracking-tight text-sm flex-1">{r.songName}</div>
-                        <div className="text-[9px] font-black text-slate-300 font-mono italic">
-                          {new Date(r.timestamp).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        <div className="flex flex-col items-end gap-0.5 min-w-[70px]">
+                          <div className="text-[9px] font-black text-slate-300 font-mono italic text-right">
+                            {new Date(r.timestamp).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                          {r.isSynced === false && (
+                            <span className="text-[7px] font-black bg-amber-100 text-amber-600 px-1 rounded animate-pulse uppercase tracking-tighter">Local only</span>
+                          )}
                         </div>
                       </div>
                       <div className="flex justify-between items-end mt-2">
