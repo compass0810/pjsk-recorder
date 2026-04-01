@@ -49,6 +49,7 @@ export default function RankMatchRecorder() {
   const [rival, setRival] = useState({ gr: 0, go: 0, b: 0, m: 0 });
   const [isCountPoints, setIsCountPoints] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [recordTime, setRecordTime] = useState("");
 
   const [toastMessage, setToastMessage] = useState("");
 
@@ -86,6 +87,12 @@ export default function RankMatchRecorder() {
       }
     };
     init();
+
+    // 現在時刻のセット
+    const now = new Date();
+    const offset = now.getTimezoneOffset() * 60000;
+    const localISOTime = new Date(now.getTime() - offset).toISOString().slice(0, 16);
+    setRecordTime(localISOTime);
   }, []);
 
   const stats = useMemo(() => {
@@ -190,7 +197,7 @@ export default function RankMatchRecorder() {
 
     const recordData: RankMatchRecord = {
       id: editingId || Date.now().toString(),
-      timestamp: Date.now(),
+      timestamp: new Date(recordTime).getTime(),
       songName: selectedSongName,
       difficulty: selectedDiff,
       level: currentLevel as string,
@@ -219,6 +226,10 @@ export default function RankMatchRecorder() {
       setRivalName("");
       setIsCountPoints(true);
       setEditingId(null);
+      
+      const now = new Date();
+      const offset = now.getTimezoneOffset() * 60000;
+      setRecordTime(new Date(now.getTime() - offset).toISOString().slice(0, 16));
     } catch (e) {
       console.error("Rank Match Save Error:", e);
       setToastMessage("保存に失敗しました。再試行してください。");
@@ -246,6 +257,11 @@ export default function RankMatchRecorder() {
     });
     setIsCountPoints(r.isCountPoints !== false);
     
+    // 時刻のセット
+    const d = new Date(r.timestamp);
+    const offset = d.getTimezoneOffset() * 60000;
+    setRecordTime(new Date(d.getTime() - offset).toISOString().slice(0, 16));
+    
     // スクロールを上へ（モバイル対応）
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -256,6 +272,9 @@ export default function RankMatchRecorder() {
     setRival({ gr: 0, go: 0, b: 0, m: 0 });
     setRivalName("");
     setIsCountPoints(true);
+    const now = new Date();
+    const offset = now.getTimezoneOffset() * 60000;
+    setRecordTime(new Date(now.getTime() - offset).toISOString().slice(0, 16));
   };
 
   const handleDelete = async (id: string) => {
@@ -526,6 +545,15 @@ export default function RankMatchRecorder() {
 
           <div className="flex flex-col flex-1 justify-center">
 
+            <div className="mb-4 text-center">
+               <input
+                 type="datetime-local"
+                 value={recordTime}
+                 onChange={e => setRecordTime(e.target.value)}
+                 className="bg-slate-100 border border-slate-200 rounded-lg px-4 py-1.5 text-xs font-black text-slate-500 outline-none focus:ring-2 focus:ring-cyan-300 transition-all text-center"
+               />
+            </div>
+
             <div className="mb-6 text-center relative px-2">
               <div className="flex justify-between items-end mb-1">
                 <div className="text-4xl font-black text-rose-500 font-mono tracking-tighter" title="YOU 失点">{yPenalty === 0 ? "0" : `-${yPenalty}`}</div>
@@ -651,7 +679,10 @@ export default function RankMatchRecorder() {
                           />
                         </div>
                         <span className={`text-[10px] font-black px-2 py-0.5 rounded text-white ${isWin ? "bg-rose-500" : isLose ? "bg-blue-500" : "bg-emerald-500"}`}>{r.result}</span>
-                        <div className="font-black text-slate-800 truncate leading-tight tracking-tight text-sm">{r.songName}</div>
+                        <div className="font-black text-slate-800 truncate leading-tight tracking-tight text-sm flex-1">{r.songName}</div>
+                        <div className="text-[9px] font-black text-slate-300 font-mono italic">
+                          {new Date(r.timestamp).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </div>
                       </div>
                       <div className="flex justify-between items-end mt-2">
                         <div className="flex items-center gap-2 text-xs font-bold text-slate-500 overflow-hidden">
