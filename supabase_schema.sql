@@ -96,6 +96,7 @@ CREATE TABLE public.rankmatch_records (
   -- 試合結果
   match_result text NOT NULL, -- 'WIN', 'LOSE', 'DRAW'
   point_change numeric(10,2) NOT NULL DEFAULT 0.0,
+  is_count_points boolean NOT NULL DEFAULT true,
   
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   timestamp bigint NOT NULL

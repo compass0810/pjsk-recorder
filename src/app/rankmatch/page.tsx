@@ -47,6 +47,8 @@ export default function RankMatchRecorder() {
 
   const [you, setYou] = useState({ gr: 0, go: 0, b: 0, m: 0, isZeroLife: false });
   const [rival, setRival] = useState({ gr: 0, go: 0, b: 0, m: 0 });
+  const [isCountPoints, setIsCountPoints] = useState(true);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const [toastMessage, setToastMessage] = useState("");
 
@@ -96,7 +98,9 @@ export default function RankMatchRecorder() {
 
       if (r.you.clearType === "AP") aps++;
       
-      recordsPointsOffset += r.pointChange;
+      if (r.isCountPoints !== false) {
+        recordsPointsOffset += r.pointChange;
+      }
     });
     const totalPoints = basePoints + recordsPointsOffset;
     return {
@@ -184,8 +188,8 @@ export default function RankMatchRecorder() {
     };
     const songNotes = getNotes(selectedSong, selectedDiff);
 
-    const newRecord: RankMatchRecord = {
-      id: Date.now().toString(),
+    const recordData: RankMatchRecord = {
+      id: editingId || Date.now().toString(),
       timestamp: Date.now(),
       songName: selectedSongName,
       difficulty: selectedDiff,
@@ -194,22 +198,64 @@ export default function RankMatchRecorder() {
       you: { perfect: Math.max(0, songNotes - (you.gr + you.go + you.b + you.m)), great: you.gr, good: you.go, bad: you.b, miss: you.m, clearType: pClearType },
       rival: { perfect: Math.max(0, songNotes - (rival.gr + rival.go + rival.b + rival.m)), great: rival.gr, good: rival.go, bad: rival.b, miss: rival.m, clearType: rClearType },
       result: currentResult,
-      pointChange: currentPointChange
+      pointChange: currentPointChange,
+      isCountPoints: isCountPoints
     };
 
     try {
-      await db.rankMatch.insert(newRecord);
-      setRecords([newRecord, ...records]);
+      if (editingId) {
+        await db.rankMatch.update(editingId, recordData);
+        setRecords(records.map(r => r.id === editingId ? recordData : r));
+        setToastMessage("戦績を更新しました！");
+      } else {
+        await db.rankMatch.insert(recordData);
+        setRecords([recordData, ...records]);
+        setToastMessage("戦績を記録しました！");
+      }
 
-      setToastMessage("戦績を記録しました！");
+      // Reset Form
       setYou({ gr: 0, go: 0, b: 0, m: 0, isZeroLife: false });
       setRival({ gr: 0, go: 0, b: 0, m: 0 });
       setRivalName("");
+      setIsCountPoints(true);
+      setEditingId(null);
     } catch (e) {
       console.error("Rank Match Save Error:", e);
       setToastMessage("保存に失敗しました。再試行してください。");
     }
     setTimeout(() => setToastMessage(""), 3000);
+  };
+
+  const handleEdit = (r: RankMatchRecord) => {
+    setEditingId(r.id);
+    setSelectedSongName(r.songName);
+    setSelectedDiff(r.difficulty);
+    setRivalName(r.rivalName);
+    setYou({ 
+      gr: r.you.great, 
+      go: r.you.good, 
+      b: r.you.bad, 
+      m: r.you.miss, 
+      isZeroLife: r.you.clearType === "FAILED" 
+    });
+    setRival({ 
+      gr: r.rival.great, 
+      go: r.rival.good, 
+      b: r.rival.bad, 
+      m: r.rival.miss 
+    });
+    setIsCountPoints(r.isCountPoints !== false);
+    
+    // スクロールを上へ（モバイル対応）
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setYou({ gr: 0, go: 0, b: 0, m: 0, isZeroLife: false });
+    setRival({ gr: 0, go: 0, b: 0, m: 0 });
+    setRivalName("");
+    setIsCountPoints(true);
   };
 
   const handleDelete = async (id: string) => {
@@ -462,6 +508,22 @@ export default function RankMatchRecorder() {
             </div>
           </div>
 
+          {editingId && (
+            <div className="mb-4 flex items-center justify-between bg-amber-50 border border-amber-200 px-4 py-2 rounded-xl">
+              <div className="flex items-center gap-2">
+                <span className="animate-pulse w-2 h-2 bg-amber-500 rounded-full"></span>
+                <span className="text-xs font-black text-amber-700 uppercase tracking-widest">Editing Mode</span>
+              </div>
+              <button 
+                onClick={handleCancelEdit}
+                className="text-[10px] font-black bg-white border border-amber-200 text-amber-600 px-3 py-1 rounded-lg hover:bg-amber-100 transition-colors"
+                title="編集をキャンセルして新規入力に戻ります"
+              >
+                CANCEL EDIT
+              </button>
+            </div>
+          )}
+
           <div className="flex flex-col flex-1 justify-center">
 
             <div className="mb-6 text-center relative px-2">
@@ -524,9 +586,16 @@ export default function RankMatchRecorder() {
                   ))}
                 </div>
 
-                <div className="absolute -bottom-[20px] left-0 w-full px-4 sm:static sm:bottom-auto sm:px-0 sm:mt-4 h-12 flex justify-end items-end">
-                  <button onClick={handleAddRecord} className="bg-slate-800 text-white font-black text-sm px-6 py-3 rounded-xl shadow-xl hover:shadow-2xl hover:bg-cyan-600 transition-all tracking-widest mt-auto mb-[-16px] sm:mb-0 z-20">
-                    SAVE RECORD
+                <div className="absolute -bottom-[20px] left-0 w-full px-4 sm:static sm:bottom-auto sm:px-0 sm:mt-4 h-12 flex justify-between items-end gap-3">
+                  <label className="flex items-center gap-2 mb-1 cursor-pointer select-none group">
+                    <div className={`relative w-10 h-6 rounded-full transition-colors ${isCountPoints ? "bg-cyan-500" : "bg-slate-300"}`}>
+                      <input type="checkbox" checked={isCountPoints} onChange={e => setIsCountPoints(e.target.checked)} className="sr-only" />
+                      <div className={`absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform ${isCountPoints ? "translate-x-4" : ""}`}></div>
+                    </div>
+                    <span className="text-[10px] font-black text-slate-500 tracking-tighter leading-none group-hover:text-slate-700">ポイントに含める</span>
+                  </label>
+                  <button onClick={handleAddRecord} className={`text-white font-black text-sm px-6 py-3 rounded-xl shadow-xl hover:shadow-2xl transition-all tracking-widest mt-auto mb-[-16px] sm:mb-0 z-20 ${editingId ? "bg-amber-500 hover:bg-amber-600" : "bg-slate-800 hover:bg-cyan-600"}`}>
+                    {editingId ? "UPDATE RECORD" : "SAVE RECORD"}
                   </button>
                 </div>
               </div>
@@ -560,8 +629,13 @@ export default function RankMatchRecorder() {
               const rBadgeColor = r.rival.clearType === "AP" ? "border-sky-400 text-sky-500 bg-sky-50" : r.rival.clearType === "FC" ? "border-pink-400 text-pink-500 bg-pink-50" : "border-slate-300 text-slate-400 bg-slate-50";
 
               return (
-                <div key={r.id} className="bg-white rounded-xl p-3 shadow-sm border border-slate-100 relative group transition-all hover:shadow-md">
-                  <button onClick={() => handleDelete(r.id)} className="absolute top-1 right-2 text-slate-300 hover:text-red-500 font-bold opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
+                <div key={r.id} className={`bg-white rounded-xl p-3 shadow-sm border relative group transition-all hover:shadow-md ${editingId === r.id ? "ring-2 ring-amber-400 border-amber-200" : "border-slate-100"}`}>
+                  <div className="absolute top-1 right-2 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => handleEdit(r)} className="text-slate-400 hover:text-amber-500 font-bold" title="編集">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                    </button>
+                    <button onClick={() => handleDelete(r.id)} className="text-slate-300 hover:text-red-500 font-bold" title="削除">✕</button>
+                  </div>
 
                   <div className="flex items-center gap-2">
                     <div className={`w-1.5 h-full absolute left-0 top-0 bottom-0 rounded-l-xl ${isWin ? "bg-rose-400" : isLose ? "bg-blue-400" : "bg-emerald-400"}`}></div>
@@ -592,8 +666,13 @@ export default function RankMatchRecorder() {
                             <span className={`px-1 rounded border leading-none font-black ${rBadgeColor} shrink-0`}>{r.rival.clearType}</span>
                           )}
                         </div>
-                        <div className={`font-black font-mono text-xl leading-none shrink-0 ml-2 ${r.pointChange > 0 ? "text-cyan-500" : "text-slate-500"}`}>
-                          {r.pointChange > 0 ? "+" : ""}{r.pointChange.toFixed(2)}
+                        <div className="flex flex-col items-end">
+                          <div className={`font-black font-mono text-lg leading-none shrink-0 ml-2 ${r.isCountPoints === false ? "text-slate-300 line-through scale-90" : r.pointChange > 0 ? "text-cyan-500" : "text-slate-500"}`}>
+                            {r.pointChange > 0 ? "+" : ""}{r.pointChange.toFixed(2)}
+                          </div>
+                          {r.isCountPoints === false && (
+                            <div className="text-[8px] font-black text-rose-400 uppercase tracking-tighter mt-0.5">Excluded</div>
+                          )}
                         </div>
                       </div>
                     </div>

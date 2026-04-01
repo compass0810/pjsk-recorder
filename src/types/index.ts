@@ -35,6 +35,7 @@ export interface RankMatchRecord {
   rival: { perfect: number; great: number; good: number; bad: number; miss: number; clearType: "CLEAR" | "FC" | "AP" | "FAILED" };
   result: "WIN" | "LOSE" | "DRAW";
   pointChange: number; // +1.0, -1.0, +1.2 など
+  isCountPoints?: boolean; // ポイント計算に含めるかどうか
 }
 
 export interface Bug {

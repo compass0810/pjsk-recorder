@@ -153,7 +153,8 @@ export const db = {
           clearType: r.rival_clear_type as any
         },
         result: r.match_result as any,
-        pointChange: parseFloat(r.point_change)
+        pointChange: parseFloat(r.point_change),
+        isCountPoints: r.is_count_points
       }));
     },
     insert: async (r: RankMatchRecord) => {
@@ -181,8 +182,42 @@ export const db = {
         rival_clear_type: r.rival.clearType,
         match_result: r.result,
         point_change: r.pointChange,
+        is_count_points: r.isCountPoints !== false,
         timestamp: r.timestamp
       });
+    },
+    update: async (id: string, r: Partial<RankMatchRecord>) => {
+      const userId = await getUserId();
+      if (!userId) return;
+
+      const updateData: any = {};
+      if (r.songName !== undefined) updateData.song_name = r.songName;
+      if (r.difficulty !== undefined) updateData.difficulty = r.difficulty;
+      if (r.level !== undefined) updateData.level_num = r.level;
+      if (r.rivalName !== undefined) updateData.rival_name = r.rivalName;
+      if (r.result !== undefined) updateData.match_result = r.result;
+      if (r.pointChange !== undefined) updateData.point_change = r.pointChange;
+      if (r.isCountPoints !== undefined) updateData.is_count_points = r.isCountPoints;
+      
+      if (r.you) {
+        if (r.you.perfect !== undefined) updateData.you_perfect = r.you.perfect;
+        if (r.you.great !== undefined) updateData.you_great = r.you.great;
+        if (r.you.good !== undefined) updateData.you_good = r.you.good;
+        if (r.you.bad !== undefined) updateData.you_bad = r.you.bad;
+        if (r.you.miss !== undefined) updateData.you_miss = r.you.miss;
+        if (r.you.clearType !== undefined) updateData.you_clear_type = r.you.clearType;
+      }
+      
+      if (r.rival) {
+        if (r.rival.perfect !== undefined) updateData.rival_perfect = r.rival.perfect;
+        if (r.rival.great !== undefined) updateData.rival_great = r.rival.great;
+        if (r.rival.good !== undefined) updateData.rival_good = r.rival.good;
+        if (r.rival.bad !== undefined) updateData.rival_bad = r.rival.bad;
+        if (r.rival.miss !== undefined) updateData.rival_miss = r.rival.miss;
+        if (r.rival.clearType !== undefined) updateData.rival_clear_type = r.rival.clearType;
+      }
+
+      await supabase.from("rankmatch_records").update(updateData).eq("id", id).eq("user_id", userId);
     },
     delete: async (id: string) => {
       const userId = await getUserId();
