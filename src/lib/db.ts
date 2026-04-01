@@ -232,7 +232,7 @@ export const db = {
         match_result: r.result,
         point_change: r.pointChange || 0,
         is_count_points: r.isCountPoints !== false,
-        timestamp: r.timestamp
+        timestamp: Math.floor(r.timestamp)
       }, { onConflict: 'id' });
 
       if (error) {
@@ -274,7 +274,7 @@ export const db = {
         match_result: r.result,
         point_change: r.pointChange || 0,
         is_count_points: r.isCountPoints !== false,
-        timestamp: r.timestamp
+        timestamp: Math.floor(r.timestamp)
       });
 
       if (error) {
