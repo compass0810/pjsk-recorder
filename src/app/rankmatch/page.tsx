@@ -105,8 +105,9 @@ export default function RankMatchRecorder() {
 
       if (r.you.clearType === "AP") aps++;
       
+      const pChange = typeof r.pointChange === 'number' && !isNaN(r.pointChange) ? r.pointChange : 0;
       if (r.isCountPoints !== false) {
-        recordsPointsOffset += r.pointChange;
+        recordsPointsOffset += pChange;
       }
     });
     const totalPoints = basePoints + recordsPointsOffset;
@@ -232,7 +233,18 @@ export default function RankMatchRecorder() {
       setRecordTime(new Date(now.getTime() - offset).toISOString().slice(0, 16));
     } catch (e) {
       console.error("Rank Match Save Error:", e);
-      setToastMessage("保存に失敗しました。再試行してください。");
+      // db.ts で local には保存されている
+      setRecords(prev => {
+        const exists = prev.find(r => r.id === recordData.id);
+        if (exists) return prev.map(r => r.id === recordData.id ? recordData : r);
+        return [recordData, ...prev];
+      });
+      setToastMessage("保存完了（一時的にローカルへ）");
+      
+      // フォームリセット
+      setYou({ gr: 0, go: 0, b: 0, m: 0, isZeroLife: false });
+      setRival({ gr: 0, go: 0, b: 0, m: 0 });
+      setEditingId(null);
     }
     setTimeout(() => setToastMessage(""), 3000);
   };

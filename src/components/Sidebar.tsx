@@ -90,7 +90,7 @@ export default function Sidebar() {
       </nav>
 
       <div className={`mt-auto pt-6 pb-6 border-t border-white/50 text-xs text-slate-500 font-bold overflow-hidden whitespace-nowrap transition-all duration-300 ${isOpen ? 'px-6 opacity-100' : 'px-0 h-0 p-0 opacity-0 pointer-events-none border-0'}`}>
-        v1.0.2(2026.04.01)<br />
+        v1.0.3(2026.04.01)<br />
         © 2026 PJSK Recorder
       </div>
     </aside>

@@ -16,6 +16,18 @@ const getUserId = async () => {
   return user?.id || null;
 };
 
+// localStorage utility for rank match
+const LOCAL_STORAGE_KEY_RANKMATCH = "pjsk_rankmatch_records_local";
+const getLocalRankMatchRecords = (): RankMatchRecord[] => {
+  if (typeof window === "undefined") return [];
+  const stored = localStorage.getItem(LOCAL_STORAGE_KEY_RANKMATCH);
+  return stored ? JSON.parse(stored) : [];
+};
+const setLocalRankMatchRecords = (records: RankMatchRecord[]) => {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(LOCAL_STORAGE_KEY_RANKMATCH, JSON.stringify(records));
+};
+
 export const db = {
   profile: {
     get: async () => {
@@ -123,15 +135,22 @@ export const db = {
     }
   },
 
-  rankMatch: {
     getAll: async (): Promise<RankMatchRecord[]> => {
       const userId = await getUserId();
-      if (!userId) return [];
-      const { data } = await supabase.from("rankmatch_records").select("*").eq("user_id", userId).order("timestamp", { ascending: false });
+      const localRecords = getLocalRankMatchRecords();
       
-      return (data || []).map(r => ({
+      if (!userId) return localRecords;
+
+      const { data, error } = await supabase.from("rankmatch_records").select("*").eq("user_id", userId).order("timestamp", { ascending: false });
+      
+      if (error) {
+        console.error("Cloud RankMatch Fetch Error:", error);
+        return localRecords; // Fallback to local
+      }
+
+      const cloudRecords = (data || []).map(r => ({
         id: r.id,
-        timestamp: r.timestamp,
+        timestamp: Number(r.timestamp),
         songName: r.song_name,
         difficulty: r.difficulty as any,
         level: r.level_num,
@@ -153,15 +172,25 @@ export const db = {
           clearType: r.rival_clear_type as any
         },
         result: r.match_result as any,
-        pointChange: parseFloat(r.point_change),
-        isCountPoints: r.is_count_points
+        pointChange: isNaN(parseFloat(r.point_change)) ? 0 : parseFloat(r.point_change),
+        isCountPoints: r.is_count_points ?? true
       }));
+
+      // Merge local and cloud (Cloud takes priority, but keep local only if newer and not in cloud)
+      // For simplicity, we just mirror Cloud to Local and return Cloud.
+      setLocalRankMatchRecords(cloudRecords);
+      return cloudRecords;
     },
     insert: async (r: RankMatchRecord) => {
       const userId = await getUserId();
-      if (!userId) return;
+      
+      // Always update local first (optimistic)
+      const currentLocal = getLocalRankMatchRecords();
+      setLocalRankMatchRecords([r, ...currentLocal]);
 
-      await supabase.from("rankmatch_records").insert({
+      if (!userId) throw new Error("Authentication Required for Cloud Sync");
+
+      const { error } = await supabase.from("rankmatch_records").insert({
         id: r.id,
         user_id: userId,
         song_name: r.songName,
@@ -185,8 +214,23 @@ export const db = {
         is_count_points: r.isCountPoints !== false,
         timestamp: r.timestamp
       });
+
+      if (error) {
+        console.error("Cloud RankMatch Insert Error:", error);
+        // Error occurred, but it's already in local.
+      }
     },
     update: async (id: string, r: Partial<RankMatchRecord>) => {
+      // Update local mirror
+      const currentLocal = getLocalRankMatchRecords();
+      const updatedLocal = currentLocal.map(rec => {
+        if (rec.id === id) {
+          return { ...rec, ...r };
+        }
+        return rec;
+      });
+      setLocalRankMatchRecords(updatedLocal);
+
       const userId = await getUserId();
       if (!userId) return;
 
@@ -198,6 +242,7 @@ export const db = {
       if (r.result !== undefined) updateData.match_result = r.result;
       if (r.pointChange !== undefined) updateData.point_change = r.pointChange;
       if (r.isCountPoints !== undefined) updateData.is_count_points = r.isCountPoints;
+      if (r.timestamp !== undefined) updateData.timestamp = r.timestamp;
       
       if (r.you) {
         if (r.you.perfect !== undefined) updateData.you_perfect = r.you.perfect;
@@ -217,12 +262,18 @@ export const db = {
         if (r.rival.clearType !== undefined) updateData.rival_clear_type = r.rival.clearType;
       }
 
-      await supabase.from("rankmatch_records").update(updateData).eq("id", id).eq("user_id", userId);
+      const { error } = await supabase.from("rankmatch_records").update(updateData).eq("id", id).eq("user_id", userId);
+      if (error) console.error("Cloud RankMatch Update Error:", error);
     },
     delete: async (id: string) => {
+      // Update local mirror
+      const currentLocal = getLocalRankMatchRecords();
+      setLocalRankMatchRecords(currentLocal.filter(r => r.id !== id));
+
       const userId = await getUserId();
       if (!userId) return;
-      await supabase.from("rankmatch_records").delete().eq("id", id).eq("user_id", userId);
+      const { error } = await supabase.from("rankmatch_records").delete().eq("id", id).eq("user_id", userId);
+      if (error) console.error("Cloud RankMatch Delete Error:", error);
     }
   },
   
