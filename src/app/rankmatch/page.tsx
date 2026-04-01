@@ -40,6 +40,7 @@ export default function RankMatchRecorder() {
   const [basePoints, setBasePoints] = useState(0);
   const [baseStats, setBaseStats] = useState({ win: 0, lose: 0, draw: 0, aps: 0 });
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const [selectedSongName, setSelectedSongName] = useState("");
   const [selectedDiff, setSelectedDiff] = useState<Difficulty>("MAS");
@@ -356,6 +357,34 @@ export default function RankMatchRecorder() {
     URL.revokeObjectURL(url);
   };
 
+  const handleSync = async () => {
+    if (!isLoggedIn || isSyncing) return;
+    const unsynced = records.filter(r => !r.isSynced);
+    if (unsynced.length === 0) {
+      setToastMessage("すべてのデータが同期済みです");
+      setTimeout(() => setToastMessage(""), 3000);
+      return;
+    }
+
+    setIsSyncing(true);
+    let successCount = 0;
+    for (const r of unsynced) {
+      try {
+        await db.rankMatch.syncOne(r);
+        successCount++;
+      } catch (err) {
+        console.error("Sync error for", r.id, err);
+      }
+    }
+    
+    // 最新状態を再取得
+    const updated = await db.rankMatch.getAll();
+    setRecords(updated);
+    setIsSyncing(false);
+    setToastMessage(`${successCount}件のデータを同期しました`);
+    setTimeout(() => setToastMessage(""), 3000);
+  };
+
   const youBarWidth = Math.max(5, (yPenalty / (yPenalty + rPenalty || 1)) * 100);
   const rivalBarWidth = 100 - youBarWidth;
   const diffColor = selectedDiff === "EXP" ? "var(--color-diff-expert)" : selectedDiff === "MAS" ? "var(--color-diff-master)" : "var(--color-diff-append)";
@@ -648,14 +677,24 @@ export default function RankMatchRecorder() {
         <div className="xl:w-[40%] flex flex-col bg-white/60 backdrop-blur-xl rounded-[1.5rem] shadow-xl border border-white shrink-0 p-5 overflow-hidden animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
           <div className="flex items-center justify-between mb-3 px-2 border-b-2 border-slate-200 pb-1">
             <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Record History</h3>
-            <button
-              onClick={handleExportCSV}
-              disabled={records.length === 0}
-              className="text-[10px] font-black px-2 py-1 bg-white text-emerald-500 border border-emerald-200 rounded-lg hover:bg-emerald-50 disabled:opacity-30 transition-all uppercase tracking-tighter shadow-sm"
-              title="放戦履歴をCSVでエクスポート"
-            >
-              CSV
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={handleSync}
+                disabled={!isLoggedIn || isSyncing}
+                className={`text-[10px] font-black px-2 py-1 border rounded-lg transition-all uppercase tracking-tighter shadow-sm flex items-center gap-1 ${isSyncing ? "bg-amber-50 text-amber-500 border-amber-200 animate-pulse" : "bg-white text-cyan-500 border-cyan-200 hover:bg-cyan-50"}`}
+                title="ローカルデータをクラウドへ同期"
+              >
+                {isSyncing ? "Syncing..." : "Sync"}
+              </button>
+              <button
+                onClick={handleExportCSV}
+                disabled={records.length === 0}
+                className="text-[10px] font-black px-2 py-1 bg-white text-emerald-500 border border-emerald-200 rounded-lg hover:bg-emerald-50 disabled:opacity-30 transition-all uppercase tracking-tighter shadow-sm"
+                title="戦績履歴をCSVでエクスポート"
+              >
+                CSV
+              </button>
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto space-y-2.5 pr-1">
             {records.length === 0 && <p className="text-center text-slate-400 mt-10 font-bold text-sm">No Records</p>}

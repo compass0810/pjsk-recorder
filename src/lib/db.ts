@@ -188,7 +188,60 @@ export const db = {
       
       const sortedMerged = merged.sort((a, b) => b.timestamp - a.timestamp);
       setLocalRankMatchRecords(sortedMerged);
+
+      // Auto-Sync: Try to upload local-only records if online
+      const unsynced = merged.filter(m => !m.isSynced);
+      if (unsynced.length > 0) {
+        // Run sync in background
+        (async () => {
+          for (const rec of unsynced) {
+            try {
+              await db.rankMatch.syncOne(rec);
+            } catch (err) {
+              console.warn("Auto-Sync Failed for record:", rec.id, err);
+            }
+          }
+        })();
+      }
+
       return sortedMerged;
+    },
+    syncOne: async (r: RankMatchRecord) => {
+      const userId = await getUserId();
+      if (!userId) return;
+
+      const { error } = await supabase.from("rankmatch_records").upsert({
+        id: r.id,
+        user_id: userId,
+        song_name: r.songName,
+        difficulty: r.difficulty,
+        level_num: r.level,
+        rival_name: r.rivalName,
+        you_perfect: r.you.perfect || 0,
+        you_great: r.you.great,
+        you_good: r.you.good,
+        you_bad: r.you.bad,
+        you_miss: r.you.miss,
+        you_clear_type: r.you.clearType,
+        rival_perfect: r.rival.perfect || 0,
+        rival_great: r.rival.great,
+        rival_good: r.rival.good,
+        rival_bad: r.rival.bad,
+        rival_miss: r.rival.miss,
+        rival_clear_type: r.rival.clearType,
+        match_result: r.result,
+        point_change: r.pointChange || 0,
+        is_count_points: r.isCountPoints !== false,
+        timestamp: r.timestamp
+      }, { onConflict: 'id' });
+
+      if (error) {
+        throw error;
+      } else {
+        // Mark as synced in local storage
+        const currentLocal = getLocalRankMatchRecords();
+        setLocalRankMatchRecords(currentLocal.map(rec => rec.id === r.id ? { ...rec, isSynced: true } : rec));
+      }
     },
     insert: async (r: RankMatchRecord) => {
       const userId = await getUserId();
