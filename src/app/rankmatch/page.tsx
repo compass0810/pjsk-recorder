@@ -378,7 +378,8 @@ export default function RankMatchRecorder() {
         successCount++;
       } catch (err) {
         failCount++;
-        console.error("Sync error for", r.id, err);
+        const msg = err instanceof Error ? err.message : (err as any)?.message ?? JSON.stringify(err);
+        console.error("Sync error for", r.id, msg);
       }
     }
     

@@ -104,9 +104,15 @@ CREATE TABLE public.rankmatch_records (
 
 -- RLS
 ALTER TABLE public.rankmatch_records ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "ユーザーは自分のランクマ戦績のみ参照可能" ON public.rankmatch_records FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "ユーザーは自分のランクマ戦績のみ参照可能" ON public.rankmatch_records;
+DROP POLICY IF EXISTS "ユーザーは自分のランクマ戦績のみ管理可能" ON public.rankmatch_records;
+
+CREATE POLICY "ユーザーは自分のランクマ戦績のみ参照可能" ON public.rankmatch_records
+  FOR SELECT USING (auth.uid() = user_id);
+
 -- INSERT/UPDATE 時は WITH CHECK が必要なので明示しておく
-CREATE POLICY "ユーザーは自分のランクマ戦績のみ管理可能" ON public.rankmatch_records FOR ALL
+CREATE POLICY "ユーザーは自分のランクマ戦績のみ管理可能" ON public.rankmatch_records
+  FOR ALL
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 

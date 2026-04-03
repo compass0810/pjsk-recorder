@@ -204,7 +204,8 @@ export const db = {
             try {
               await db.rankMatch.syncOne(rec);
             } catch (err) {
-              console.warn("Auto-Sync Failed for record:", rec.id, err);
+              const msg = err instanceof Error ? err.message : (err as any)?.message ?? JSON.stringify(err);
+              console.warn("Auto-Sync Failed for record:", rec.id, msg);
             }
           }
         })();
@@ -242,7 +243,14 @@ export const db = {
       }, { onConflict: 'id' });
 
       if (error) {
-        throw error;
+        const status = (error as any)?.status;
+        const message = (error as any)?.message ?? "Unknown error";
+        const details = (error as any)?.details;
+        const hint = (error as any)?.hint;
+        // throw Error にして catch 側でメッセージが確実に見えるようにする
+        throw new Error(
+          `syncOne failed: status=${status ?? "?"}, message=${message}${details ? `, details=${details}` : ""}${hint ? `, hint=${hint}` : ""}`
+        );
       } else {
         // Mark as synced in local storage
         const currentLocal = getLocalRankMatchRecords();
@@ -285,7 +293,13 @@ export const db = {
 
       if (error) {
         console.error("Cloud RankMatch Insert Error:", error);
-        throw error; // Let the UI handle it (but it's already in local)
+        const status = (error as any)?.status;
+        const message = (error as any)?.message ?? "Unknown error";
+        const details = (error as any)?.details;
+        const hint = (error as any)?.hint;
+        throw new Error(
+          `insert failed: status=${status ?? "?"}, message=${message}${details ? `, details=${details}` : ""}${hint ? `, hint=${hint}` : ""}`
+        ); // Let the UI handle it (but it's already in local)
       } else {
         // Mark as synced in local storage
         const currentLocal = getLocalRankMatchRecords();
