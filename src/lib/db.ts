@@ -21,6 +21,19 @@ const setLocalRankMatchRecords = (records: RankMatchRecord[]) => {
   localStorage.setItem(LOCAL_STORAGE_KEY_RANKMATCH, JSON.stringify(records));
 };
 
+const normalizeNumber = (v: unknown, fallback: number = 0) => {
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : fallback;
+};
+
+const normalizeString = (v: unknown, fallback: string = "") => {
+  return typeof v === "string" ? v : fallback;
+};
+
+const normalizeClearType = (v: unknown) => {
+  return (typeof v === "string" && (v === "CLEAR" || v === "FC" || v === "AP" || v === "FAILED")) ? v : "CLEAR";
+};
+
 export const db = {
   profile: {
     get: async () => {
@@ -201,31 +214,31 @@ export const db = {
     },
     syncOne: async (r: RankMatchRecord) => {
       const userId = await getUserId();
-      if (!userId) return;
+      if (!userId) throw new Error("Authentication Required for Cloud Sync");
 
       const { error } = await supabase.from("rankmatch_records").upsert({
         id: r.id,
         user_id: userId,
-        song_name: r.songName,
-        difficulty: r.difficulty,
-        level_num: r.level,
-        rival_name: r.rivalName,
-        you_perfect: r.you.perfect || 0,
-        you_great: r.you.great,
-        you_good: r.you.good,
-        you_bad: r.you.bad,
-        you_miss: r.you.miss,
-        you_clear_type: r.you.clearType,
-        rival_perfect: r.rival.perfect || 0,
-        rival_great: r.rival.great,
-        rival_good: r.rival.good,
-        rival_bad: r.rival.bad,
-        rival_miss: r.rival.miss,
-        rival_clear_type: r.rival.clearType,
+        song_name: normalizeString(r.songName, r.songName),
+        difficulty: normalizeString(r.difficulty, String(r.difficulty)),
+        level_num: normalizeString(r.level, String(r.level)),
+        rival_name: normalizeString(r.rivalName, r.rivalName),
+        you_perfect: normalizeNumber(r.you?.perfect, 0),
+        you_great: normalizeNumber(r.you?.great, 0),
+        you_good: normalizeNumber(r.you?.good, 0),
+        you_bad: normalizeNumber(r.you?.bad, 0),
+        you_miss: normalizeNumber(r.you?.miss, 0),
+        you_clear_type: normalizeClearType(r.you?.clearType),
+        rival_perfect: normalizeNumber(r.rival?.perfect, 0),
+        rival_great: normalizeNumber(r.rival?.great, 0),
+        rival_good: normalizeNumber(r.rival?.good, 0),
+        rival_bad: normalizeNumber(r.rival?.bad, 0),
+        rival_miss: normalizeNumber(r.rival?.miss, 0),
+        rival_clear_type: normalizeClearType(r.rival?.clearType),
         match_result: r.result,
-        point_change: r.pointChange || 0,
+        point_change: normalizeNumber(r.pointChange, 0),
         is_count_points: r.isCountPoints !== false,
-        timestamp: Math.floor(r.timestamp)
+        timestamp: Math.floor(normalizeNumber(r.timestamp, Date.now()))
       }, { onConflict: 'id' });
 
       if (error) {
@@ -248,26 +261,26 @@ export const db = {
       const { error } = await supabase.from("rankmatch_records").insert({
         id: r.id,
         user_id: userId,
-        song_name: r.songName,
-        difficulty: r.difficulty,
-        level_num: r.level,
-        rival_name: r.rivalName,
-        you_perfect: r.you.perfect || 0,
-        you_great: r.you.great,
-        you_good: r.you.good,
-        you_bad: r.you.bad,
-        you_miss: r.you.miss,
-        you_clear_type: r.you.clearType,
-        rival_perfect: r.rival.perfect || 0,
-        rival_great: r.rival.great,
-        rival_good: r.rival.good,
-        rival_bad: r.rival.bad,
-        rival_miss: r.rival.miss,
-        rival_clear_type: r.rival.clearType,
+        song_name: normalizeString(r.songName, r.songName),
+        difficulty: normalizeString(r.difficulty, String(r.difficulty)),
+        level_num: normalizeString(r.level, String(r.level)),
+        rival_name: normalizeString(r.rivalName, r.rivalName),
+        you_perfect: normalizeNumber(r.you?.perfect, 0),
+        you_great: normalizeNumber(r.you?.great, 0),
+        you_good: normalizeNumber(r.you?.good, 0),
+        you_bad: normalizeNumber(r.you?.bad, 0),
+        you_miss: normalizeNumber(r.you?.miss, 0),
+        you_clear_type: normalizeClearType(r.you?.clearType),
+        rival_perfect: normalizeNumber(r.rival?.perfect, 0),
+        rival_great: normalizeNumber(r.rival?.great, 0),
+        rival_good: normalizeNumber(r.rival?.good, 0),
+        rival_bad: normalizeNumber(r.rival?.bad, 0),
+        rival_miss: normalizeNumber(r.rival?.miss, 0),
+        rival_clear_type: normalizeClearType(r.rival?.clearType),
         match_result: r.result,
-        point_change: r.pointChange || 0,
+        point_change: normalizeNumber(r.pointChange, 0),
         is_count_points: r.isCountPoints !== false,
-        timestamp: Math.floor(r.timestamp)
+        timestamp: Math.floor(normalizeNumber(r.timestamp, Date.now()))
       });
 
       if (error) {

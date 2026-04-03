@@ -371,11 +371,13 @@ export default function RankMatchRecorder() {
 
     setIsSyncing(true);
     let successCount = 0;
+    let failCount = 0;
     for (const r of unsynced) {
       try {
         await db.rankMatch.syncOne(r);
         successCount++;
       } catch (err) {
+        failCount++;
         console.error("Sync error for", r.id, err);
       }
     }
@@ -384,7 +386,11 @@ export default function RankMatchRecorder() {
     const updated = await db.rankMatch.getAll();
     setRecords(updated);
     setIsSyncing(false);
-    setToastMessage(`${successCount}件のデータを同期しました`);
+    setToastMessage(
+      failCount === 0
+        ? `${successCount}件のデータを同期しました`
+        : `${successCount}件同期、${failCount}件失敗しました`
+    );
     setTimeout(() => setToastMessage(""), 3000);
   };
 
