@@ -4,16 +4,9 @@ import { RankMatchRecord, PlayResult, Bug, BugComment } from "../types";
 // DB Access Layer (Supabase / Cloud Version)
 // 全データはサーバー側でユーザーIDに紐づけて保存されます
 
-let cachedUserId: string | null = null;
-
 const getUserId = async () => {
-  // null をキャッシュしないようにする（認証完了前に呼ばれた場合の対策）
-  if (cachedUserId) return cachedUserId;
   const { data: { user } } = await supabase.auth.getUser();
-  if (user?.id) {
-    cachedUserId = user.id;
-  }
-  return user?.id || null;
+  return user?.id ?? null;
 };
 
 // localStorage utility for rank match
