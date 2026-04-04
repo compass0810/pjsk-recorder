@@ -34,6 +34,31 @@ function getRankInfo(totalPoints: number) {
   return { ...RANKS[6], class: 1, pointInClass: 0 };
 }
 
+function calculateSimilarity(s1: string, s2: string): number {
+  if (!s1 || !s2) return 0;
+  if (s1 === s2) return 1;
+  s1 = s1.toLowerCase();
+  s2 = s2.toLowerCase();
+  const costs: number[] = [];
+  for (let i = 0; i <= s1.length; i++) {
+    let lastValue = i;
+    for (let j = 0; j <= s2.length; j++) {
+      if (i === 0) costs[j] = j;
+      else if (j > 0) {
+        let newValue = costs[j - 1];
+        if (s1.charAt(i - 1) !== s2.charAt(j - 1)) {
+          newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
+        }
+        costs[j - 1] = lastValue;
+        lastValue = newValue;
+      }
+    }
+    if (i > 0) costs[s2.length] = lastValue;
+  }
+  const maxLen = Math.max(s1.length, s2.length);
+  return (maxLen - costs[s2.length]) / maxLen;
+}
+
 export default function RankMatchRecorder() {
   const [songs, setSongs] = useState<Song[]>([]);
   const [records, setRecords] = useState<RankMatchRecord[]>([]);
@@ -434,7 +459,7 @@ export default function RankMatchRecorder() {
   const diffColor = selectedDiff === "EXP" ? "var(--color-diff-expert)" : selectedDiff === "MAS" ? "var(--color-diff-master)" : "var(--color-diff-append)";
 
   const matchedTop100Player = useMemo(() => {
-    return top100Players.find(p => p.name === rivalName);
+    return top100Players.find(p => calculateSimilarity(p.name, rivalName) >= 0.8);
   }, [top100Players, rivalName]);
 
   return (
@@ -626,7 +651,7 @@ export default function RankMatchRecorder() {
                 )}
               </div>
               {matchedTop100Player && (
-                <div className="absolute top-1/2 -translate-y-1/2 right-3 flex items-center gap-1.5 animate-fade-in-up z-20 pointer-events-none">
+                <div className="absolute top-full left-0 mt-2 flex items-center gap-1.5 animate-fade-in-up z-20 pointer-events-none">
                   <div className="bg-gradient-to-r from-amber-400 to-orange-500 text-white text-[9px] font-black px-2 py-0.5 rounded shadow-sm flex items-center gap-1">
                     <span className="drop-shadow-sm">👑 TOP100</span>
                     <span className="bg-white/20 px-1 rounded">{matchedTop100Player.rank}位</span>
@@ -776,7 +801,7 @@ export default function RankMatchRecorder() {
               const badgeColor = r.you.clearType === "AP" ? "border-sky-400 text-sky-500 bg-sky-50" : r.you.clearType === "FC" ? "border-pink-400 text-pink-500 bg-pink-50" : r.you.clearType === "FAILED" ? "border-red-400 text-red-500 bg-red-50" : "border-slate-300 text-slate-400 bg-slate-50";
               const rBadgeColor = r.rival.clearType === "AP" ? "border-sky-400 text-sky-500 bg-sky-50" : r.rival.clearType === "FC" ? "border-pink-400 text-pink-500 bg-pink-50" : "border-slate-300 text-slate-400 bg-slate-50";
 
-              const histMatchedTop100 = top100Players.find(p => p.name === r.rivalName);
+              const histMatchedTop100 = top100Players.find(p => calculateSimilarity(p.name, r.rivalName) >= 0.8);
 
               return (
                 <div key={r.id} className={`bg-white rounded-xl p-3 shadow-sm border relative group transition-all hover:shadow-md ${editingId === r.id ? "ring-2 ring-amber-400 border-amber-200" : "border-slate-100"}`}>
@@ -826,9 +851,13 @@ export default function RankMatchRecorder() {
                           )}
                           <span className={yPen > 0 ? "text-rose-500 font-black font-mono text-sm shrink-0" : "text-sm font-black font-mono shrink-0"}>{yPen > 0 ? `-${yPen}` : "0"}</span>
                           <span className="mx-1 text-slate-400 text-[10px] italic shrink-0">vs</span>
-                          <span className={`font-bold truncate max-w-[120px] text-xs leading-none flex items-center gap-1 ${histMatchedTop100 ? "text-orange-500" : "text-slate-600"}`}>
-                            {histMatchedTop100 && <span className="text-[10px]" title={`TOP100: ${histMatchedTop100.rank}位 (${histMatchedTop100.score}粒)`}>👑</span>}
+                          <span className={`font-bold truncate max-w-[120px] text-xs leading-none flex items-center gap-1.5 text-slate-600`}>
                             {r.rivalName || "RIVAL"}
+                            {histMatchedTop100 && (
+                              <span className="bg-orange-500 text-white font-black px-1.5 h-4.5 rounded flex items-center justify-center text-[10px] shrink-0 shadow-sm leading-none" title={`TOP100 / 粒数: ${histMatchedTop100.score}`}>
+                                #{histMatchedTop100.rank}
+                              </span>
+                            )}
                           </span>
                           <span className={rPen > 0 ? "text-blue-500 font-black font-mono ml-1 text-sm shrink-0" : "ml-1 text-sm font-black font-mono shrink-0"}>{rPen > 0 ? `-${rPen}` : "0"}</span>
                           {r.rival.clearType !== "CLEAR" && (
