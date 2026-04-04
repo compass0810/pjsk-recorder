@@ -11,6 +11,12 @@ export interface Song {
 
 export type Difficulty = "EXP" | "MAS" | "APD";
 
+export interface Top100Player {
+  rank: number;
+  name: string;
+  score: string;
+}
+
 export interface PlayResult {
   songNo: string;
   difficulty: Difficulty;

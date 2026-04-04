@@ -102,6 +102,26 @@ CREATE TABLE public.rankmatch_records (
   timestamp bigint NOT NULL
 );
 
+-- 既存環境でカラム追加漏れがあると、クライアント側 schema cache が不整合になって INSERT/UPSERT が失敗する
+-- （例: rival_perfect が存在しない）
+-- 必須カラムをまとめて冪等に追加しておく
+ALTER TABLE public.rankmatch_records
+  ADD COLUMN IF NOT EXISTS you_perfect integer NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS you_great integer NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS you_good integer NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS you_bad integer NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS you_miss integer NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS you_clear_type text NOT NULL DEFAULT 'CLEAR',
+  ADD COLUMN IF NOT EXISTS rival_perfect integer NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS rival_great integer NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS rival_good integer NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS rival_bad integer NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS rival_miss integer NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS rival_clear_type text NOT NULL DEFAULT 'CLEAR',
+  ADD COLUMN IF NOT EXISTS match_result text NOT NULL DEFAULT 'DRAW',
+  ADD COLUMN IF NOT EXISTS point_change numeric(10,2) NOT NULL DEFAULT 0.0,
+  ADD COLUMN IF NOT EXISTS is_count_points boolean NOT NULL DEFAULT true;
+
 -- RLS
 ALTER TABLE public.rankmatch_records ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "ユーザーは自分のランクマ戦績のみ参照可能" ON public.rankmatch_records;

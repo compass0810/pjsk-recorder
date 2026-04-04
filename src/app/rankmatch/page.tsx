@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { fetchSongs } from "@/lib/api";
 import { db } from "@/lib/db";
 import { supabase } from "@/lib/supabase";
-import { Song, RankMatchRecord, Difficulty } from "@/types";
+import { Song, RankMatchRecord, Difficulty, Top100Player } from "@/types";
 
 const RANKS = [
   { id: "master", name: "Master", base: 0, color: "from-purple-400 to-fuchsia-400", bg: "bg-purple-50", text: "text-purple-600", symbol: "✦" },
@@ -41,6 +41,8 @@ export default function RankMatchRecorder() {
   const [baseStats, setBaseStats] = useState({ win: 0, lose: 0, draw: 0, aps: 0 });
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [top100Players, setTop100Players] = useState<Top100Player[]>([]);
+  const [top100DataTime, setTop100DataTime] = useState("");
 
   const [selectedSongName, setSelectedSongName] = useState("");
   const [selectedDiff, setSelectedDiff] = useState<Difficulty>("MAS");
@@ -88,6 +90,35 @@ export default function RankMatchRecorder() {
       }
     };
     init();
+
+    const fetchTop100 = async () => {
+      try {
+        const res = await fetch("https://docs.google.com/spreadsheets/d/e/2PACX-1vS9l4M9dIYIysExtETc_G238AWRe2-Cy3l9vOvBbRfjF-vNJ24XHbXQW9jmLX-W_n5f_YCS8D_c6AeI/pub?gid=1141253994&single=true&output=csv");
+        const text = await res.text();
+        const lines = text.split('\n');
+        if (lines.length > 0) {
+          const header = lines[0].split(',');
+          if (header.length > 5) {
+            setTop100DataTime(header[5].trim());
+          }
+          const players: Top100Player[] = [];
+          for (let i = 1; i < lines.length; i++) {
+            const cols = lines[i].split(',');
+            if (cols.length >= 3 && cols[1].trim() !== "") {
+              players.push({
+                rank: parseInt(cols[0], 10),
+                name: cols[1].trim(),
+                score: cols[2].trim()
+              });
+            }
+          }
+          setTop100Players(players);
+        }
+      } catch (e) {
+        console.error("Top100 fetch error:", e);
+      }
+    };
+    fetchTop100();
 
     // 現在時刻のセット
     const now = new Date();
@@ -229,6 +260,7 @@ export default function RankMatchRecorder() {
       setYou({ gr: 0, go: 0, b: 0, m: 0, isZeroLife: false });
       setRival({ gr: 0, go: 0, b: 0, m: 0 });
       setRivalName("");
+      setSelectedSongName("");
       setIsCountPoints(true);
       setEditingId(null);
       
@@ -248,6 +280,7 @@ export default function RankMatchRecorder() {
       // フォームリセット
       setYou({ gr: 0, go: 0, b: 0, m: 0, isZeroLife: false });
       setRival({ gr: 0, go: 0, b: 0, m: 0 });
+      setSelectedSongName("");
       setEditingId(null);
     }
     setTimeout(() => setToastMessage(""), 3000);
@@ -287,6 +320,7 @@ export default function RankMatchRecorder() {
     setYou({ gr: 0, go: 0, b: 0, m: 0, isZeroLife: false });
     setRival({ gr: 0, go: 0, b: 0, m: 0 });
     setRivalName("");
+    setSelectedSongName("");
     setIsCountPoints(true);
     const now = new Date();
     const offset = now.getTimezoneOffset() * 60000;
@@ -398,6 +432,10 @@ export default function RankMatchRecorder() {
   const youBarWidth = Math.max(5, (yPenalty / (yPenalty + rPenalty || 1)) * 100);
   const rivalBarWidth = 100 - youBarWidth;
   const diffColor = selectedDiff === "EXP" ? "var(--color-diff-expert)" : selectedDiff === "MAS" ? "var(--color-diff-master)" : "var(--color-diff-append)";
+
+  const matchedTop100Player = useMemo(() => {
+    return top100Players.find(p => p.name === rivalName);
+  }, [top100Players, rivalName]);
 
   return (
     <div className="flex flex-col h-full p-6 lg:p-8 gap-6 absolute inset-0 overflow-y-auto w-full">
@@ -574,11 +612,28 @@ export default function RankMatchRecorder() {
 
             <div className="font-black text-slate-300 mx-2 italic text-xl hidden sm:block">VS</div>
 
-            <div className="flex-1 bg-slate-50/80 rounded-lg shadow-sm border border-slate-100 w-full">
-              <input
-                type="text" value={rivalName} onChange={e => setRivalName(e.target.value)}
-                placeholder="RIVAL NAME" className="outline-none bg-transparent font-black text-blue-600 tracking-widest w-full text-base p-3 placeholder:text-slate-300"
-              />
+            <div className="flex-1 relative">
+              <div className="bg-slate-50/80 rounded-lg shadow-sm border border-slate-100 w-full flex items-center">
+                <input
+                  type="text" value={rivalName} onChange={e => setRivalName(e.target.value)}
+                  placeholder="RIVAL NAME" className="outline-none bg-transparent font-black text-blue-600 tracking-widest w-full text-base p-3 placeholder:text-slate-300"
+                  list={stats.totalPoints >= 0 ? "top100-rivals" : undefined}
+                />
+                {stats.totalPoints >= 0 && top100Players.length > 0 && (
+                  <datalist id="top100-rivals">
+                    {top100Players.map(p => <option key={p.rank} value={p.name} />)}
+                  </datalist>
+                )}
+              </div>
+              {matchedTop100Player && (
+                <div className="absolute top-1/2 -translate-y-1/2 right-3 flex items-center gap-1.5 animate-fade-in-up z-20 pointer-events-none">
+                  <div className="bg-gradient-to-r from-amber-400 to-orange-500 text-white text-[9px] font-black px-2 py-0.5 rounded shadow-sm flex items-center gap-1">
+                    <span className="drop-shadow-sm">👑 TOP100</span>
+                    <span className="bg-white/20 px-1 rounded">{matchedTop100Player.rank}位</span>
+                    <span className="bg-white/20 px-1 rounded">{matchedTop100Player.score}粒</span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -721,6 +776,8 @@ export default function RankMatchRecorder() {
               const badgeColor = r.you.clearType === "AP" ? "border-sky-400 text-sky-500 bg-sky-50" : r.you.clearType === "FC" ? "border-pink-400 text-pink-500 bg-pink-50" : r.you.clearType === "FAILED" ? "border-red-400 text-red-500 bg-red-50" : "border-slate-300 text-slate-400 bg-slate-50";
               const rBadgeColor = r.rival.clearType === "AP" ? "border-sky-400 text-sky-500 bg-sky-50" : r.rival.clearType === "FC" ? "border-pink-400 text-pink-500 bg-pink-50" : "border-slate-300 text-slate-400 bg-slate-50";
 
+              const histMatchedTop100 = top100Players.find(p => p.name === r.rivalName);
+
               return (
                 <div key={r.id} className={`bg-white rounded-xl p-3 shadow-sm border relative group transition-all hover:shadow-md ${editingId === r.id ? "ring-2 ring-amber-400 border-amber-200" : "border-slate-100"}`}>
                   <div className="absolute top-1 right-2 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -769,7 +826,10 @@ export default function RankMatchRecorder() {
                           )}
                           <span className={yPen > 0 ? "text-rose-500 font-black font-mono text-sm shrink-0" : "text-sm font-black font-mono shrink-0"}>{yPen > 0 ? `-${yPen}` : "0"}</span>
                           <span className="mx-1 text-slate-400 text-[10px] italic shrink-0">vs</span>
-                          <span className="font-bold text-slate-600 truncate max-w-[120px] text-xs leading-none">{r.rivalName || "RIVAL"}</span>
+                          <span className={`font-bold truncate max-w-[120px] text-xs leading-none flex items-center gap-1 ${histMatchedTop100 ? "text-orange-500" : "text-slate-600"}`}>
+                            {histMatchedTop100 && <span className="text-[10px]" title={`TOP100: ${histMatchedTop100.rank}位 (${histMatchedTop100.score}粒)`}>👑</span>}
+                            {r.rivalName || "RIVAL"}
+                          </span>
                           <span className={rPen > 0 ? "text-blue-500 font-black font-mono ml-1 text-sm shrink-0" : "ml-1 text-sm font-black font-mono shrink-0"}>{rPen > 0 ? `-${rPen}` : "0"}</span>
                           {r.rival.clearType !== "CLEAR" && (
                             <span className={`px-1 rounded border leading-none font-black ${rBadgeColor} shrink-0`}>{r.rival.clearType}</span>
