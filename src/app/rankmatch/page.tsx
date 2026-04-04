@@ -851,14 +851,16 @@ export default function RankMatchRecorder() {
                           )}
                           <span className={yPen > 0 ? "text-rose-500 font-black font-mono text-sm shrink-0" : "text-sm font-black font-mono shrink-0"}>{yPen > 0 ? `-${yPen}` : "0"}</span>
                           <span className="mx-1 text-slate-400 text-[10px] italic shrink-0">vs</span>
-                          <span className={`font-bold truncate max-w-[120px] text-xs leading-none flex items-center gap-1.5 text-slate-600`}>
-                            {r.rivalName || "RIVAL"}
+                          <div className="flex items-center gap-1.5 min-w-0 max-w-[140px]">
+                            <span className="font-bold truncate text-xs text-slate-600 leading-none">
+                              {r.rivalName || "RIVAL"}
+                            </span>
                             {histMatchedTop100 && (
                               <span className="bg-orange-500 text-white font-black px-1.5 h-4.5 rounded flex items-center justify-center text-[10px] shrink-0 shadow-sm leading-none" title={`TOP100 / 粒数: ${histMatchedTop100.score}`}>
                                 #{histMatchedTop100.rank}
                               </span>
                             )}
-                          </span>
+                          </div>
                           <span className={rPen > 0 ? "text-blue-500 font-black font-mono ml-1 text-sm shrink-0" : "ml-1 text-sm font-black font-mono shrink-0"}>{rPen > 0 ? `-${rPen}` : "0"}</span>
                           {r.rival.clearType !== "CLEAR" && (
                             <span className={`px-1 rounded border leading-none font-black ${rBadgeColor} shrink-0`}>{r.rival.clearType}</span>
