@@ -561,18 +561,24 @@ export default function YumesteResultRecorder() {
   return (
     <div className="flex h-full p-6 lg:p-8 gap-6 absolute inset-0 overflow-hidden bg-gradient-to-br from-pink-50/80 via-rose-50/60 to-purple-50/80">
       <div className="fixed top-8 right-8 z-[60] animate-fade-in-up">
-        <div className="bg-white/80 backdrop-blur-xl border border-white/50 rounded-2xl p-4 shadow-2xl flex flex-col items-end min-w-[180px] hover:scale-105 transition-all">
-          <div className="text-[10px] font-black text-slate-400 uppercase mb-0.5">Total Seisho Achievement</div>
-          <div className="flex items-baseline gap-1 bg-gradient-to-r from-slate-800 to-slate-900 bg-clip-text text-transparent">
-            <span className="text-2xl font-black font-mono tracking-tighter italic">{seishoStats.earned}</span>
-            <span className="text-xs font-black text-slate-300 mx-1">/</span>
-            <span className="text-lg font-black font-mono text-slate-400">{seishoStats.max}</span>
+        <div className="bg-white/90 backdrop-blur-2xl border border-white/50 rounded-full px-6 py-2 shadow-2xl flex items-center gap-6 group hover:scale-[1.02] transition-all duration-300 relative overflow-hidden">
+          <div className="flex flex-col">
+            <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Seisho Achievement</div>
+            <div className="flex items-baseline gap-2">
+              <div className="flex items-baseline gap-1 bg-gradient-to-r from-slate-800 to-slate-900 bg-clip-text text-transparent">
+                <span className="text-xl font-black font-mono italic leading-none">{seishoStats.earned}</span>
+                <span className="text-[10px] font-black text-slate-300 mx-0.5">/</span>
+                <span className="text-sm font-black font-mono text-slate-400 leading-none">{seishoStats.max}</span>
+              </div>
+              <div className="h-3 w-px bg-slate-200 mx-1" />
+              <div className="flex items-baseline gap-1">
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">Rate</span>
+                <span className="text-base font-black text-slate-900 font-mono tracking-tighter leading-none">{seishoStats.rate.toFixed(2)}%</span>
+              </div>
+            </div>
           </div>
-          <div className="text-[10px] font-black text-slate-400 mt-1">
-            獲得率: <span className="text-slate-900 text-sm font-mono">{seishoStats.rate.toFixed(2)}%</span>
-          </div>
-          <div className="w-full h-1.5 bg-slate-100 rounded-full mt-2 overflow-hidden shadow-inner flex">
-            <div className="h-full bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-500 transition-all duration-1000 shadow-[0_0_8px_rgba(236,72,153,0.3)]" style={{ width: `${seishoStats.rate}%` }} />
+          <div className="absolute bottom-0 left-0 w-full h-1 bg-slate-100/50">
+            <div className="h-full bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-500 transition-all duration-1000 shadow-[0_0_10px_rgba(236,72,153,0.4)]" style={{ width: `${seishoStats.rate}%` }} />
           </div>
         </div>
       </div>

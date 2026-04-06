@@ -524,15 +524,26 @@ export default function ResultRecorder() {
     <div className="flex h-full p-6 lg:p-8 gap-6 absolute inset-0 overflow-hidden">
       {/* 全体レート表示 (画面右上) */}
       <div className="fixed top-8 right-8 z-[60] animate-fade-in-up">
-        <div className="bg-white/80 backdrop-blur-xl border border-white/50 rounded-2xl p-4 shadow-2xl flex flex-col items-end min-w-[140px] group hover:scale-105 transition-all duration-300">
-          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Total Rating</div>
-          <div className="flex items-baseline gap-1 bg-gradient-to-r from-cyan-600 to-blue-600 bg-clip-text text-transparent">
-            <span className="text-3xl font-black font-mono tracking-tighter">
-              {totalRating.toFixed(2)}
-            </span>
+        <div className="bg-white/90 backdrop-blur-2xl border border-white/50 rounded-full px-6 py-2.5 shadow-2xl flex items-center gap-6 group hover:scale-[1.02] transition-all duration-300 relative overflow-hidden">
+          <div className="flex items-center gap-4">
+            <div className="flex flex-col">
+              <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Total Rating</div>
+              <div className="flex items-center gap-4">
+                <div className="bg-gradient-to-r from-cyan-600 to-blue-600 bg-clip-text text-transparent">
+                  <span className="text-2xl font-black font-mono tracking-tighter leading-none">
+                    {totalRating.toFixed(2)}
+                  </span>
+                </div>
+                <div className="h-3 w-px bg-slate-200" />
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Standard</span>
+                  <span className="text-sm font-black text-slate-600 font-mono tracking-tighter leading-none">45.00</span>
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="w-full h-1.5 bg-slate-100 rounded-full mt-2 overflow-hidden shadow-inner">
-            <div className="h-full bg-gradient-to-r from-cyan-400 to-blue-500 transition-all duration-1000" style={{ width: `${Math.min(100, (totalRating / 45) * 100)}%` }} />
+          <div className="absolute bottom-0 left-0 w-full h-1 bg-slate-100/50">
+            <div className="h-full bg-gradient-to-r from-cyan-400 to-blue-500 transition-all duration-1000 shadow-[0_0_10px_rgba(34,211,238,0.3)]" style={{ width: `${Math.min(100, (totalRating / 45) * 100)}%` }} />
           </div>
         </div>
       </div>
