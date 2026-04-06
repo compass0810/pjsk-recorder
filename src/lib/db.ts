@@ -91,49 +91,54 @@ export const db = {
     upsert: async (r: PlayResult) => {
       const userId = await getUserId();
       if (!userId) throw new Error("Not authenticated");
-      
+
+      const accuracyNum = parseFloat(r.accuracy);
+
       const { error } = await supabase.from("play_results").upsert({
         user_id: userId,
         song_no: r.songNo,
         difficulty: r.difficulty,
-        perfect_plus: r.perfectPlus || 0,
-        perfect: r.perfect,
-        great: r.great,
-        good: r.good,
-        bad: r.bad,
-        miss: r.miss,
+        perfect_plus: r.perfectPlus ?? 0,
+        perfect: r.perfect ?? 0,
+        great: r.great ?? 0,
+        good: r.good ?? 0,
+        bad: r.bad ?? 0,
+        miss: r.miss ?? 0,
         clear_type: r.clearType,
-        accuracy: parseFloat(r.accuracy),
+        accuracy: Number.isFinite(accuracyNum) ? accuracyNum : 0,
         updated_at: new Date(r.updatedAt).toISOString()
       }, { onConflict: 'user_id,song_no,difficulty' });
-      
+
       if (error) {
-        console.error("Save Error:", error);
+        console.error("[db.playResults.upsert] Save Error:", error.message, error.details, { songNo: r.songNo, difficulty: r.difficulty });
         throw error;
       }
     },
     upsertMany: async (results: PlayResult[]) => {
       const userId = await getUserId();
       if (!userId || results.length === 0) return;
-      
-      const rows = results.map(r => ({
-        user_id: userId,
-        song_no: r.songNo,
-        difficulty: r.difficulty,
-        perfect_plus: r.perfectPlus || 0,
-        perfect: r.perfect,
-        great: r.great,
-        good: r.good,
-        bad: r.bad,
-        miss: r.miss,
-        clear_type: r.clearType,
-        accuracy: parseFloat(r.accuracy),
-        updated_at: new Date(r.updatedAt || Date.now()).toISOString()
-      }));
+
+      const rows = results.map(r => {
+        const accuracyNum = parseFloat(r.accuracy);
+        return {
+          user_id: userId,
+          song_no: r.songNo,
+          difficulty: r.difficulty,
+          perfect_plus: r.perfectPlus ?? 0,
+          perfect: r.perfect ?? 0,
+          great: r.great ?? 0,
+          good: r.good ?? 0,
+          bad: r.bad ?? 0,
+          miss: r.miss ?? 0,
+          clear_type: r.clearType,
+          accuracy: Number.isFinite(accuracyNum) ? accuracyNum : 0,
+          updated_at: new Date(r.updatedAt || Date.now()).toISOString()
+        };
+      });
 
       const { error } = await supabase.from("play_results").upsert(rows, { onConflict: 'user_id,song_no,difficulty' });
       if (error) {
-        console.error("Batch Save Error:", error);
+        console.error("[db.playResults.upsertMany] Batch Save Error:", error.message, error.details);
         throw error;
       }
     },

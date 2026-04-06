@@ -37,6 +37,7 @@ CREATE TABLE public.play_results (
   user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   song_no text NOT NULL,
   difficulty text NOT NULL, -- 'EXP', 'MAS', 'APD'
+  perfect_plus integer NOT NULL DEFAULT 0, -- PERFECT+ (ユメステ専用、他ゲームは0)
   perfect integer NOT NULL DEFAULT 0,
   great integer NOT NULL DEFAULT 0,
   good integer NOT NULL DEFAULT 0,
@@ -51,6 +52,10 @@ CREATE TABLE public.play_results (
 -- 検索を高速化するためのインデックス
 -- upsert を機能させるために UNIQUE 索引に変更
 CREATE UNIQUE INDEX idx_play_results_user_song_diff ON public.play_results(user_id, song_no, difficulty);
+
+-- !! 既存環境向け: このカラムが存在しない場合は以下を Supabase SQL Editor で実行してください !!
+ALTER TABLE public.play_results
+  ADD COLUMN IF NOT EXISTS perfect_plus integer NOT NULL DEFAULT 0;
 
 -- RLS
 ALTER TABLE public.play_results ENABLE ROW LEVEL SECURITY;

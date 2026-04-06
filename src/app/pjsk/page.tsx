@@ -632,7 +632,7 @@ export default function ResultRecorder() {
       </div>
 
       {/* 右ペイン: 入力フォーム */}
-      <div className="flex-1 flex flex-col items-center justify-center p-4 relative">
+      <div className="flex-1 flex flex-col items-center justify-start pt-32 p-4 relative">
         {!selectedEntry ? (
           <div className="text-slate-400 font-bold bg-white/40 backdrop-blur px-8 py-4 rounded-full border border-white/50 tracking-wider">
             左のリストから楽曲を選択してください

@@ -283,30 +283,28 @@ export default function YumesteResultRecorder() {
     });
   }, [songs, results, searchQuery, filterDiff, filterLevel, filterClearType, sortType]);
 
-  const totalRating = useMemo(() => {
-    const allRatings: number[] = [];
+  const seishoStats = useMemo(() => {
+    let earned = 0;
+    let max = 0;
     songs.forEach(song => {
-      const diffs: YumesteDifficulty[] = ["STELLA", "OLIVIER"];
+      const diffs: YumesteDifficulty[] = ["OLIVIER"]; // 星章は OLIVIER のみ集計
       diffs.forEach(diff => {
-        const levelStr = diff === "STELLA" ? song.STELLA難易度 : song.OLIVIER難易度;
+        const levelStr = song.OLIVIER難易度;
         if (levelStr && levelStr !== "-" && levelStr !== "***" && levelStr.trim() !== "") {
+          const levelNum = parseLevel(levelStr);
+          max += (60 + levelNum * 10); // 理論値: Base(50+LV*10) + Judge5 + Lamp5 = 60 + LV*10
+
           const res = results[`YM_${song.No}-${diff}`];
           if (res) {
-            const levelNum = parseLevel(levelStr);
-            if (diff === "OLIVIER") {
-              // OLIVIER は星章ポイントとして計算
-              const perfBelow = (res.perfect || 0) + (res.great || 0) + (res.good || 0) + (res.bad || 0) + (res.miss || 0);
-              const seisho = calculateSeishoDetailed(levelNum, parseFloat(res.accuracy), perfBelow, res.clearType);
-              allRatings.push(seisho.total);
-            } else {
-              const r = calculateSingleRating(String(levelNum), parseFloat(res.accuracy));
-              allRatings.push(r);
-            }
+            const perfBelow = (res.perfect || 0) + (res.great || 0) + (res.good || 0) + (res.bad || 0) + (res.miss || 0);
+            const seisho = calculateSeishoDetailed(levelNum, parseFloat(res.accuracy), perfBelow, res.clearType);
+            earned += seisho.total;
           }
         }
       });
     });
-    return calculateAverageOfTopN(allRatings, 30);
+    const rate = max > 0 ? (earned / max) * 100 : 0;
+    return { earned, max, rate };
   }, [songs, results]);
 
   const levelOptions = useMemo(() => {
@@ -563,13 +561,18 @@ export default function YumesteResultRecorder() {
   return (
     <div className="flex h-full p-6 lg:p-8 gap-6 absolute inset-0 overflow-hidden bg-gradient-to-br from-pink-50/80 via-rose-50/60 to-purple-50/80">
       <div className="fixed top-8 right-8 z-[60] animate-fade-in-up">
-        <div className="bg-white/80 backdrop-blur-xl border border-white/50 rounded-2xl p-4 shadow-2xl flex flex-col items-end min-w-[140px] hover:scale-105 transition-all">
-          <div className="text-[10px] font-black text-slate-400 uppercase mb-0.5">Total Rating</div>
-          <div className="flex items-baseline gap-1 bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent">
-            <span className="text-3xl font-black font-mono tracking-tighter">{totalRating.toFixed(2)}</span>
+        <div className="bg-white/80 backdrop-blur-xl border border-white/50 rounded-2xl p-4 shadow-2xl flex flex-col items-end min-w-[180px] hover:scale-105 transition-all">
+          <div className="text-[10px] font-black text-slate-400 uppercase mb-0.5">Total Seisho Achievement</div>
+          <div className="flex items-baseline gap-1 bg-gradient-to-r from-slate-800 to-slate-900 bg-clip-text text-transparent">
+            <span className="text-2xl font-black font-mono tracking-tighter italic">{seishoStats.earned}</span>
+            <span className="text-xs font-black text-slate-300 mx-1">/</span>
+            <span className="text-lg font-black font-mono text-slate-400">{seishoStats.max}</span>
+          </div>
+          <div className="text-[10px] font-black text-slate-400 mt-1">
+            獲得率: <span className="text-slate-900 text-sm font-mono">{seishoStats.rate.toFixed(2)}%</span>
           </div>
           <div className="w-full h-1.5 bg-slate-100 rounded-full mt-2 overflow-hidden shadow-inner flex">
-            <div className="h-full bg-gradient-to-r from-pink-400 to-purple-500 transition-all duration-1000" style={{ width: `${Math.min(100, (totalRating / 45) * 100)}%` }} />
+            <div className="h-full bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-500 transition-all duration-1000 shadow-[0_0_8px_rgba(236,72,153,0.3)]" style={{ width: `${seishoStats.rate}%` }} />
           </div>
         </div>
       </div>
@@ -667,7 +670,7 @@ export default function YumesteResultRecorder() {
       </div>
 
       {/* 右ペイン */}
-      <div className="flex-1 flex flex-col items-center justify-center p-4 relative">
+      <div className="flex-1 flex flex-col items-center justify-start pt-32 p-4 relative">
         {!selectedEntry ? (
           <div className="text-slate-400 font-bold bg-white/40 backdrop-blur px-8 py-4 rounded-full border border-white/50 tracking-wider">
             左のリストから楽曲を選択してください
