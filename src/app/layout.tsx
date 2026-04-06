@@ -4,7 +4,7 @@ import Sidebar from "@/components/Sidebar";
 import MaintenanceGuard from "@/components/MaintenanceGuard";
 
 export const metadata: Metadata = {
-  title: "プロセカレコーダー",
+  title: "音ゲーレコーダー",
   description: "プレイリザルトとランクマッチの戦績管理",
 };
 

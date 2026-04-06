@@ -19,7 +19,8 @@ export default function Sidebar() {
   }, []);
 
   const navItems = [
-    { label: "リザルト記録", short: "R", path: "/" },
+    { label: "ハブページ", short: "HB", path: "/" },
+    { label: "リザルト記録", short: "R", path: "/pjsk" },
     { label: "ランクマレコーダー", short: "RM", path: "/rankmatch" },
     { label: "譜面メーカー情報", short: "MK", path: "/maker" },
     { label: "アップデートログ", short: "LG", path: "/log" },
@@ -57,7 +58,7 @@ export default function Sidebar() {
           ♪
         </div>
         <h1 className={`text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-600 to-blue-600 tracking-tight whitespace-nowrap overflow-hidden transition-all duration-300 ${isOpen ? 'w-auto opacity-100' : 'w-0 opacity-0'}`}>
-          プロセカレコーダー
+          {pathname === '/' ? "音ゲーレコーダー" : "プロセカレコーダー"}
         </h1>
       </div>
 
@@ -90,7 +91,7 @@ export default function Sidebar() {
       </nav>
 
       <div className={`mt-auto pt-6 pb-6 border-t border-white/50 text-xs text-slate-500 font-bold overflow-hidden whitespace-nowrap transition-all duration-300 ${isOpen ? 'px-6 opacity-100' : 'px-0 h-0 p-0 opacity-0 pointer-events-none border-0'}`}>
-        v1.1.0.beta1(2026.04.06)<br />
+        v1.1.0.beta2(2026.04.06)<br />
         © 2026 PJSK Recorder
       </div>
     </aside>
