@@ -20,6 +20,7 @@ export interface Top100Player {
 export interface PlayResult {
   songNo: string;
   difficulty: Difficulty;
+  perfectPlus?: number;
   great: number;
   good: number;
   bad: number;

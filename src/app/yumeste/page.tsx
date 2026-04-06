@@ -13,6 +13,30 @@ interface ListEntry {
   level: string;
 }
 
+const parseLevel = (levelStr: string) => {
+  if (!levelStr) return 0;
+  const s = String(levelStr).toUpperCase().trim();
+  const romanMap: Record<string, number> = {
+    "Ⅰ": 1, "I": 1,
+    "Ⅱ": 2, "II": 2,
+    "Ⅲ": 3, "III": 3,
+    "Ⅳ": 4, "IV": 4,
+    "Ⅴ": 5, "V": 5,
+    "Ⅵ": 6, "VI": 6,
+    "Ⅶ": 7, "VII": 7,
+    "Ⅷ": 8, "VIII": 8,
+    "Ⅸ": 9, "IX": 9,
+    "Ⅹ": 10, "X": 10,
+    "Ⅺ": 11, "XI": 11,
+    "Ⅻ": 12, "XII": 12
+  };
+  if (romanMap[s]) {
+    return romanMap[s];
+  }
+  const n = Number(s);
+  return isNaN(n) ? 0 : n;
+};
+
 const SongListItem = React.memo(({ 
   entry, 
   saved, 
@@ -47,7 +71,7 @@ const SongListItem = React.memo(({
         ${isQuickAPMode ? "hover:ring-2 hover:ring-rose-400" : ""}
       `}
     >
-      <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 border border-slate-200/50 bg-white">
+      <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 border border-slate-200/50 bg-white relative">
         <img 
           src={`https://cdn.wikiwiki.jp/to/w/wds/収録楽曲一覧/::attach/${encodeURIComponent(entry.song.曲名)}.png`}
           alt="jacket"
@@ -69,7 +93,7 @@ const SongListItem = React.memo(({
           <div className="flex items-center gap-2 mt-1">
             {saved.clearType !== "CLEAR" && (
               <span className={`text-[10px] font-black px-1.5 py-0.5 rounded border leading-none uppercase
-                 ${saved.clearType === "AP" ? "border-rose-400 text-rose-500 bg-rose-50" : saved.clearType === "FC" ? "border-pink-400 text-pink-500 bg-pink-50" : "border-slate-300 text-slate-400"}`}>
+                 ${saved.clearType === "AP" ? "border-cyan-400 text-cyan-500 bg-cyan-50" : saved.clearType === "FC" ? "border-pink-400 text-pink-500 bg-pink-50" : "border-slate-300 text-slate-400"}`}>
                 {saved.clearType}
               </span>
             )}
@@ -105,7 +129,7 @@ export default function YumesteResultRecorder() {
 
   const [toastMessage, setToastMessage] = useState("");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [inputs, setInputs] = useState({ great: 0, good: 0, bad: 0, miss: 0 });
+  const [inputs, setInputs] = useState({ perfect: 0, great: 0, good: 0, bad: 0, miss: 0 });
   
   const [isLoading, setIsLoading] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState({ loaded: 0, total: 0 });
@@ -165,11 +189,18 @@ export default function YumesteResultRecorder() {
       };
 
       if (sortType === "name_asc") return a.song.曲名.localeCompare(b.song.曲名, 'ja');
-      const lvA = a.level === "X" ? 10 : a.level === "Ⅸ" ? 9 : a.level === "Ⅷ" ? 8 : a.level === "Ⅶ" ? 7 : a.level === "Ⅵ" ? 6 : a.level === "Ⅴ" ? 5 : a.level === "Ⅳ" ? 4 : a.level === "Ⅲ" ? 3 : a.level === "Ⅱ" ? 2 : a.level === "Ⅰ" ? 1 : Number(a.level);
-      const lvB = b.level === "X" ? 10 : b.level === "Ⅸ" ? 9 : b.level === "Ⅷ" ? 8 : b.level === "Ⅶ" ? 7 : b.level === "Ⅵ" ? 6 : b.level === "Ⅴ" ? 5 : b.level === "Ⅳ" ? 4 : b.level === "Ⅲ" ? 3 : b.level === "Ⅱ" ? 2 : b.level === "Ⅰ" ? 1 : Number(b.level);
+      
+      const lvA = parseLevel(a.level);
+      const lvB = parseLevel(b.level);
+      
+      const diffWeightA = a.diff === "OLIVIER" ? 100 : 0;
+      const diffWeightB = b.diff === "OLIVIER" ? 100 : 0;
+      
+      const totalA = lvA + diffWeightA;
+      const totalB = lvB + diffWeightB;
 
-      if (sortType === "level_desc") return (lvB || 0) - (lvA || 0) || a.song.曲名.localeCompare(b.song.曲名, 'ja');
-      if (sortType === "level_asc") return (lvA || 0) - (lvB || 0) || a.song.曲名.localeCompare(b.song.曲名, 'ja');
+      if (sortType === "level_desc") return totalB - totalA || a.song.曲名.localeCompare(b.song.曲名, 'ja');
+      if (sortType === "level_asc") return totalA - totalB || a.song.曲名.localeCompare(b.song.曲名, 'ja');
       if (sortType === "acc_desc") return getAcc(b) - getAcc(a) || a.song.曲名.localeCompare(b.song.曲名, 'ja');
       if (sortType === "acc_asc") return getAcc(a) - getAcc(b) || a.song.曲名.localeCompare(b.song.曲名, 'ja');
       return 0;
@@ -185,9 +216,9 @@ export default function YumesteResultRecorder() {
         if (levelStr && levelStr !== "-" && levelStr !== "***" && levelStr.trim() !== "") {
           const res = results[`YM_${song.No}-${diff}`];
           if (res) {
-            // ローマ数字サポートのための変換
-            const levelNumStr = levelStr === "X" ? "10" : levelStr === "Ⅸ" ? "9" : levelStr === "Ⅷ" ? "8" : levelStr === "Ⅶ" ? "7" : levelStr === "Ⅵ" ? "6" : levelStr === "Ⅴ" ? "5" : levelStr === "Ⅳ" ? "4" : levelStr === "Ⅲ" ? "3" : levelStr === "Ⅱ" ? "2" : levelStr === "Ⅰ" ? "1" : levelStr;
-            const r = calculateSingleRating(levelNumStr, parseFloat(res.accuracy));
+            const levelNum = parseLevel(levelStr);
+            // 本家と同等のレート計算にするため、レベル数値と達成率を使用
+            const r = calculateSingleRating(String(levelNum), parseFloat(res.accuracy));
             allRatings.push(r);
           }
         }
@@ -202,8 +233,8 @@ export default function YumesteResultRecorder() {
       if (s.STELLA難易度 && s.STELLA難易度 !== "-" && s.STELLA難易度 !== "***") levels.add(s.STELLA難易度);
       if (s.OLIVIER難易度 && s.OLIVIER難易度 !== "-" && s.OLIVIER難易度 !== "***") levels.add(s.OLIVIER難易度);
     });
-    // アラビア文字とローマ文字が混在するのでソート用関数が必要ですが、手抜きで文字列そのまま
-    return Array.from(levels).sort();
+    // レベル順でソート（OLIVIER表記も考慮）
+    return Array.from(levels).sort((a, b) => parseLevel(a) - parseLevel(b) || a.localeCompare(b));
   }, [songs]);
 
   const getNotes = useCallback((song: YumesteSong, diff: Difficulty) => {
@@ -217,35 +248,43 @@ export default function YumesteResultRecorder() {
       const resultKey = `YM_${selectedEntry.song.No}-${selectedEntry.diff}`;
       const saved = results[resultKey];
       if (saved) {
-        setInputs({ great: saved.great, good: saved.good, bad: saved.bad, miss: saved.miss });
+        setInputs({ perfect: saved.perfect || 0, great: saved.great || 0, good: saved.good || 0, bad: saved.bad || 0, miss: saved.miss || 0 });
       } else {
-        setInputs({ great: 0, good: 0, bad: 0, miss: 0 });
+        setInputs({ perfect: 0, great: 0, good: 0, bad: 0, miss: 0 });
       }
     }
   }, [selectedEntry, results]);
 
-  const calculatePerfect = () => {
+  const calculatePerfectPlus = () => {
     if (!selectedEntry) return 0;
     const totalNotes = getNotes(selectedEntry.song, selectedEntry.diff);
-    return Math.max(0, totalNotes - (inputs.great + inputs.good + inputs.bad + inputs.miss));
+    return Math.max(0, totalNotes - (inputs.perfect + inputs.great + inputs.good + inputs.bad + inputs.miss));
   };
 
   const calculateAccuracy = useCallback((r: any, total: number) => {
     if (!r || total === 0 || isNaN(total)) return null;
-    const score = (r.perfect * 3) + (r.great * 2) + (r.good * 1);
-    const pct = (score / (total * 3)) * 100;
-    return pct.toFixed(4);
+    // PERFECT+=101, PERFECT=100, GREAT=75, GOOD=45, BAD/MISS=0
+    // r.perfectPlus, r.perfect, r.great, r.good
+    const pPlus = r.perfectPlus || 0;
+    const p = r.perfect || 0;
+    const gr = r.great || 0;
+    const go = r.good || 0;
+    
+    const accuracy = ((pPlus * 101) + (p * 100) + (gr * 75) + (go * 45)) / total;
+    return accuracy.toFixed(4); // max 101.0000
   }, []);
 
   const handleSave = async () => {
     if (!selectedEntry) return;
-    const perfect = calculatePerfect();
+    const perfectPlus = calculatePerfectPlus();
     const totalNotes = getNotes(selectedEntry.song, selectedEntry.diff);
 
     let autoClearStatus: "AP" | "FC" | "CLEAR" = "CLEAR";
-    if (inputs.great === 0 && inputs.good === 0 && inputs.bad === 0 && inputs.miss === 0) {
-      autoClearStatus = "AP";
-    } else if (inputs.good === 0 && inputs.bad === 0 && inputs.miss === 0) {
+    if (inputs.perfect === 0 && inputs.great === 0 && inputs.good === 0 && inputs.bad === 0 && inputs.miss === 0) {
+      autoClearStatus = "AP"; // PERFECT+ のみの場合もAP (もしくはAP+的な表示にするか？)
+    } else if (inputs.great === 0 && inputs.good === 0 && inputs.bad === 0 && inputs.miss === 0) {
+      autoClearStatus = "AP"; // ゆめすてだとどれがAP扱いかは定義によるが一旦PとP+のみでAP
+    } else if (inputs.bad === 0 && inputs.miss === 0) {
       autoClearStatus = "FC";
     }
 
@@ -253,10 +292,14 @@ export default function YumesteResultRecorder() {
     const newResult: PlayResult = {
       songNo: `YM_${selectedEntry.song.No}`,
       difficulty: selectedEntry.diff,
-      ...inputs,
-      perfect,
+      perfectPlus,
+      perfect: inputs.perfect,
+      great: inputs.great,
+      good: inputs.good,
+      bad: inputs.bad,
+      miss: inputs.miss,
       clearType: autoClearStatus,
-      accuracy: calculateAccuracy({ ...inputs, perfect }, totalNotes) || "0.0000",
+      accuracy: calculateAccuracy({ perfectPlus, ...inputs }, totalNotes) || "0.0000",
       updatedAt: Date.now()
     };
 
@@ -294,7 +337,7 @@ export default function YumesteResultRecorder() {
       await db.playResults.upsert(lastSavedResult);
       setResults(prev => ({ ...prev, [resultKey]: lastSavedResult }));
       setInputs({ 
-        great: lastSavedResult.great, good: lastSavedResult.good, bad: lastSavedResult.bad, miss: lastSavedResult.miss 
+        perfect: lastSavedResult.perfect || 0, great: lastSavedResult.great, good: lastSavedResult.good, bad: lastSavedResult.bad, miss: lastSavedResult.miss 
       });
     } else {
       await db.playResults.delete(`YM_${selectedEntry.song.No}`, selectedEntry.diff);
@@ -303,7 +346,7 @@ export default function YumesteResultRecorder() {
         delete next[resultKey];
         return next;
       });
-      setInputs({ great: 0, good: 0, bad: 0, miss: 0 });
+      setInputs({ perfect: 0, great: 0, good: 0, bad: 0, miss: 0 });
     }
     
     setShowUndo(false);
@@ -323,7 +366,7 @@ export default function YumesteResultRecorder() {
       delete next[resultKey];
       return next;
     });
-    setInputs({ great: 0, good: 0, bad: 0, miss: 0 });
+    setInputs({ perfect: 0, great: 0, good: 0, bad: 0, miss: 0 });
     setToastMessage("リセットしました。");
     setTimeout(() => setToastMessage(""), 3000);
   };
@@ -358,10 +401,10 @@ export default function YumesteResultRecorder() {
     const newResult: PlayResult = {
       songNo: `YM_${entry.song.No}`,
       difficulty: entry.diff,
-      great: 0, good: 0, bad: 0, miss: 0,
-      perfect: totalNotes,
+      perfectPlus: totalNotes, // ここではすべてP+とする
+      perfect: 0, great: 0, good: 0, bad: 0, miss: 0,
       clearType: "AP",
-      accuracy: "100.0000",
+      accuracy: "101.0000",
       updatedAt: Date.now()
     };
 
@@ -397,10 +440,10 @@ export default function YumesteResultRecorder() {
       return {
         songNo: `YM_${entry.song.No}`,
         difficulty: entry.diff,
-        great: 0, good: 0, bad: 0, miss: 0,
-        perfect: totalNotes,
+        perfectPlus: totalNotes,
+        perfect: 0, great: 0, good: 0, bad: 0, miss: 0,
         clearType: "AP",
-        accuracy: "100.0000",
+        accuracy: "101.0000",
         updatedAt: now
       };
     });
@@ -423,12 +466,12 @@ export default function YumesteResultRecorder() {
   if (isLoading) {
     const pct = loadingProgress.total === 0 ? 0 : Math.round((loadingProgress.loaded / loadingProgress.total) * 100);
     return (
-      <div className="flex flex-col items-center justify-center h-full absolute inset-0 w-full animate-fade-in-up">
+      <div className="flex flex-col items-center justify-center h-full absolute inset-0 w-full animate-fade-in-up bg-rose-50/50">
         <div className="bg-white/80 backdrop-blur-xl rounded-[2rem] p-10 shadow-2xl border border-white flex flex-col items-center max-w-sm w-full">
-          <div className="w-16 h-16 border-4 border-rose-100 border-t-rose-500 rounded-full animate-spin mb-6"></div>
+          <div className="w-16 h-16 border-4 border-rose-100 border-t-pink-500 rounded-full animate-spin mb-6"></div>
           <h2 className="text-2xl font-black text-slate-800 mb-2">読み込み中...</h2>
           <div className="w-full bg-slate-100 h-3 rounded-full flex overflow-hidden">
-            <div className="bg-gradient-to-r from-rose-400 to-purple-500 h-full transition-all" style={{ width: `${pct}%` }}></div>
+            <div className="bg-gradient-to-r from-pink-400 to-purple-500 h-full transition-all" style={{ width: `${pct}%` }}></div>
           </div>
         </div>
       </div>
@@ -436,36 +479,36 @@ export default function YumesteResultRecorder() {
   }
 
   return (
-    <div className="flex h-full p-6 lg:p-8 gap-6 absolute inset-0 overflow-hidden bg-rose-50/30">
+    <div className="flex h-full p-6 lg:p-8 gap-6 absolute inset-0 overflow-hidden bg-gradient-to-br from-pink-50/80 via-rose-50/60 to-purple-50/80">
       <div className="fixed top-8 right-8 z-[60] animate-fade-in-up">
         <div className="bg-white/80 backdrop-blur-xl border border-white/50 rounded-2xl p-4 shadow-2xl flex flex-col items-end min-w-[140px] hover:scale-105 transition-all">
           <div className="text-[10px] font-black text-slate-400 uppercase mb-0.5">Total Rating</div>
-          <div className="flex items-baseline gap-1 bg-gradient-to-r from-rose-500 to-purple-600 bg-clip-text text-transparent">
+          <div className="flex items-baseline gap-1 bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent">
             <span className="text-3xl font-black font-mono tracking-tighter">{totalRating.toFixed(2)}</span>
           </div>
           <div className="w-full h-1.5 bg-slate-100 rounded-full mt-2 overflow-hidden shadow-inner flex">
-            <div className="h-full bg-gradient-to-r from-rose-400 to-purple-500 transition-all duration-1000" style={{ width: `${Math.min(100, (totalRating / 45) * 100)}%` }} />
+            <div className="h-full bg-gradient-to-r from-pink-400 to-purple-500 transition-all duration-1000" style={{ width: `${Math.min(100, (totalRating / 45) * 100)}%` }} />
           </div>
         </div>
       </div>
 
       <div className={`fixed top-6 right-6 z-50 transition-all duration-500 transform ${toastMessage ? "translate-x-0 opacity-100" : "translate-x-8 opacity-0 pointer-events-none"}`}>
-        <div className="bg-white/90 backdrop-blur border-l-4 border-rose-400 p-4 rounded-xl shadow-2xl flex items-center gap-4">
-          <div className="bg-rose-100 text-rose-600 rounded-full w-8 h-8 flex items-center justify-center font-bold">✓</div>
+        <div className="bg-white/90 backdrop-blur border-l-4 border-pink-400 p-4 rounded-xl shadow-2xl flex items-center gap-4">
+          <div className="bg-pink-100 text-pink-600 rounded-full w-8 h-8 flex items-center justify-center font-bold">✓</div>
           <div className="font-bold text-slate-700">{toastMessage}</div>
         </div>
       </div>
 
       {/* 左ペイン */}
       <div className="w-1/3 min-w-[320px] flex flex-col bg-white/70 backdrop-blur-xl rounded-[2rem] shadow-xl overflow-hidden border border-white shrink-0">
-        <div className="p-5 bg-gradient-to-r from-rose-100/30 to-purple-100/30 border-b border-white/50 space-y-3">
+        <div className="p-5 bg-gradient-to-r from-pink-100/40 to-purple-100/40 border-b border-white/50 space-y-3">
           <div className="flex justify-between items-center mb-1">
-            <h2 className="text-xl font-black text-rose-900 tracking-tight">YumeSte Songs</h2>
+            <h2 className="text-xl font-black text-pink-500 tracking-tight">YumeSte Songs</h2>
             <div className="flex items-center gap-2">
               <button 
                 onClick={() => setIsQuickAPMode(!isQuickAPMode)}
                 className={`text-[10px] font-black px-2 py-1 rounded-lg transition-all uppercase tracking-tighter shadow-sm border
-                  ${isQuickAPMode ? "bg-rose-500 text-white border-rose-600 ring-2 ring-rose-300" : "bg-white text-slate-400"}
+                  ${isQuickAPMode ? "bg-pink-500 text-white border-pink-600 ring-2 ring-pink-300" : "bg-white text-slate-400"}
                 `}
               >
                 Quick AP {isQuickAPMode ? "ON" : "OFF"}
@@ -483,7 +526,7 @@ export default function YumesteResultRecorder() {
 
           <input
             type="text" placeholder="楽曲名で検索..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-            className="w-full bg-white/80 border border-slate-200 outline-none p-2.5 rounded-xl font-bold text-sm focus:ring-2 focus:ring-rose-300 transition-all shadow-inner"
+            className="w-full bg-white/80 border border-slate-200 outline-none p-2.5 rounded-xl font-bold text-sm focus:ring-2 focus:ring-pink-300 transition-all shadow-inner"
           />
 
           <div className="flex gap-2 text-xs font-bold">
@@ -514,15 +557,14 @@ export default function YumesteResultRecorder() {
             const saved = results[resultKey];
             const isSelected = selectedEntry?.song.No === entry.song.No && selectedEntry?.diff === entry.diff;
 
-            // ローマ数字サポートのための変換
-            const levelNumStr = entry.level === "X" ? "10" : entry.level === "Ⅸ" ? "9" : entry.level === "Ⅷ" ? "8" : entry.level === "Ⅶ" ? "7" : entry.level === "Ⅵ" ? "6" : entry.level === "Ⅴ" ? "5" : entry.level === "Ⅳ" ? "4" : entry.level === "Ⅲ" ? "3" : entry.level === "Ⅱ" ? "2" : entry.level === "Ⅰ" ? "1" : entry.level;
+            const levelNum = parseLevel(entry.level);
 
             return (
               <SongListItem 
                 key={resultKey} entry={entry} saved={saved} isSelected={isSelected} isQuickAPMode={isQuickAPMode}
                 onClick={() => isQuickAPMode ? handleQuickAP(entry) : setSelectedEntry(entry)}
                 calculateAccuracy={calculateAccuracy} getNotes={getNotes}
-                rating={saved ? calculateSingleRating(levelNumStr, parseFloat(saved.accuracy)) : null}
+                rating={saved ? calculateSingleRating(String(levelNum), parseFloat(saved.accuracy)) : null}
                 style={{ animationDelay: `${idx * 0.03}s` }}
               />
             );
@@ -541,7 +583,7 @@ export default function YumesteResultRecorder() {
             <div className={`absolute -top-32 -right-32 w-64 h-64 rounded-full blur-3xl opacity-20 pointer-events-none transition-colors duration-1000
               ${selectedEntry.diff === "STELLA" ? "bg-purple-500" : "bg-slate-900"}`} />
 
-            <div className="px-10 pt-10 pb-6 flex items-end gap-6 relative z-10">
+            <div className="px-10 pt-8 pb-4 flex items-end gap-6 relative z-10 border-b border-white/50">
               <div className="w-24 h-24 bg-slate-100 rounded-[1.5rem] shadow-inner border-2 border-slate-200/50 flex flex-col items-center justify-center shrink-0 overflow-hidden relative group">
                 <img 
                   src={`https://cdn.wikiwiki.jp/to/w/wds/収録楽曲一覧/::attach/${encodeURIComponent(selectedEntry.song.曲名)}.png`}
@@ -556,7 +598,7 @@ export default function YumesteResultRecorder() {
                     {selectedEntry.diff} {selectedEntry.level}
                   </span>
                 </div>
-                <h2 className="text-4xl font-black text-slate-800 tracking-tighter leading-tight">{selectedEntry.song.曲名}</h2>
+                <h2 className="text-3xl font-black text-slate-800 tracking-tighter leading-tight">{selectedEntry.song.曲名}</h2>
               </div>
               <div className="text-right pb-1">
                 <div className="text-xs font-black text-slate-400 tracking-wider mb-1 uppercase">Best Accuracy</div>
@@ -566,48 +608,50 @@ export default function YumesteResultRecorder() {
               </div>
             </div>
 
-            <div className="flex-1 px-10 pb-10 flex flex-col justify-center relative z-10">
-              <div className="bg-slate-50/50 rounded-[2rem] p-8 border border-white/60 shadow-inner flex flex-col h-full">
-                <div className="flex justify-between items-center mb-8 px-8">
+            <div className="flex-1 px-8 pb-8 pt-4 flex flex-col justify-center relative z-10 overflow-y-auto">
+              <div className="bg-slate-50/50 rounded-[2rem] p-6 border border-white/60 shadow-inner flex flex-col h-full overflow-y-auto min-h-[350px]">
+                <div className="flex justify-between items-center mb-6 px-8 shrink-0">
                   <div className="flex-1 text-center">
-                    <div className="text-rose-400/80 font-black text-sm tracking-widest mb-1">PERFECT</div>
-                    <div className="text-6xl font-black font-mono text-rose-400 transition-all duration-300">
-                      {calculatePerfect()}
+                    <div className="text-cyan-400 font-black text-xs tracking-widest mb-1">PERFECT+</div>
+                    <div className="text-5xl font-black font-mono text-cyan-400 transition-all duration-300">
+                      {calculatePerfectPlus()}
                     </div>
                   </div>
-                  <div className="w-px h-16 bg-slate-200/80 mx-4" />
+                  <div className="w-px h-12 bg-slate-200/80 mx-4" />
                   <div className="flex-1 text-center">
-                    <div className="text-slate-400 font-black text-sm tracking-widest mb-1">TOTAL NOTES</div>
-                    <div className="text-4xl font-black font-mono text-slate-400">
+                    <div className="text-slate-400 font-black text-xs tracking-widest mb-1">TOTAL NOTES</div>
+                    <div className="text-3xl font-black font-mono text-slate-400">
                       {getNotes(selectedEntry.song, selectedEntry.diff)}
                     </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 flex-1">
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 flex-1 mb-4">
                   {[
-                    { key: "great", label: "GREAT", colorClasses: { label: "text-pink-400", bgLine: "bg-pink-400/20 group-focus-within:bg-pink-400", ring: "focus-within:ring-pink-300", input: "text-pink-500" } },
-                    { key: "good", label: "GOOD", colorClasses: { label: "text-purple-400", bgLine: "bg-purple-400/20 group-focus-within:bg-purple-400", ring: "focus-within:ring-purple-300", input: "text-purple-500" } },
-                    { key: "bad", label: "BAD", colorClasses: { label: "text-emerald-400", bgLine: "bg-emerald-400/20 group-focus-within:bg-emerald-400", ring: "focus-within:ring-emerald-300", input: "text-emerald-500" } },
-                    { key: "miss", label: "MISS", colorClasses: { label: "text-slate-400", bgLine: "bg-slate-400/20 group-focus-within:bg-slate-400", ring: "focus-within:ring-slate-300", input: "text-slate-700" } },
+                    // 水色、薄紫、オレンジ、青、紫、灰色
+                    { key: "perfect", label: "PERFECT", colorClasses: { label: "text-purple-300", bgLine: "bg-purple-300/30 group-focus-within:bg-purple-300", ring: "focus-within:ring-purple-200", input: "text-purple-400" } },
+                    { key: "great", label: "GREAT", colorClasses: { label: "text-orange-400", bgLine: "bg-orange-400/20 group-focus-within:bg-orange-400", ring: "focus-within:ring-orange-300", input: "text-orange-500" } },
+                    { key: "good", label: "GOOD", colorClasses: { label: "text-blue-500", bgLine: "bg-blue-500/20 group-focus-within:bg-blue-500", ring: "focus-within:ring-blue-300", input: "text-blue-600" } },
+                    { key: "bad", label: "BAD", colorClasses: { label: "text-purple-600", bgLine: "bg-purple-600/20 group-focus-within:bg-purple-600", ring: "focus-within:ring-purple-300", input: "text-purple-700" } },
+                    { key: "miss", label: "MISS", colorClasses: { label: "text-slate-400", bgLine: "bg-slate-400/20 group-focus-within:bg-slate-400", ring: "focus-within:ring-slate-300", input: "text-slate-600" } },
                   ].map((j) => (
-                    <label key={j.key} className={`bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col group transition-all duration-200 focus-within:ring-2 ${j.colorClasses.ring} hover:shadow-md cursor-text relative overflow-hidden`}>
+                    <label key={j.key} className={`bg-white rounded-[1.25rem] p-3 shadow-sm border border-slate-100 flex flex-col group transition-all duration-200 focus-within:ring-2 ${j.colorClasses.ring} hover:shadow-md cursor-text relative overflow-hidden`}>
                       <div className={`absolute top-0 left-0 w-full h-1 ${j.colorClasses.bgLine} transition-colors`} />
-                      <span className={`text-sm font-black tracking-wider ${j.colorClasses.label} mb-2 uppercase`}>{j.label}</span>
+                      <span className={`text-[11px] font-black tracking-wider ${j.colorClasses.label} mb-1 uppercase`}>{j.label}</span>
                       <input
                         type="number" min="0" value={(inputs as any)[j.key] === 0 ? "" : (inputs as any)[j.key]} placeholder="0"
                         onChange={e => setInputs(prev => ({ ...prev, [j.key]: Number(e.target.value) }))}
-                        className={`w-full text-right text-4xl font-black font-mono bg-transparent outline-none ${j.colorClasses.input} flex-1`}
+                        className={`w-full text-right text-3xl font-black font-mono bg-transparent outline-none ${j.colorClasses.input} flex-1`}
                       />
                     </label>
                   ))}
                 </div>
 
-                <div className="mt-8 flex gap-4 h-16">
-                  <button onClick={handleResetRecord} className="w-16 h-16 bg-slate-100 text-slate-400 rounded-2xl flex items-center justify-center hover:bg-rose-50 hover:text-rose-500 transition-all border border-slate-200/50 group">
-                    <span className="text-xs font-black uppercase tracking-tighter group-hover:scale-95 transition-transform">Reset</span>
+                <div className="flex gap-3 h-14 shrink-0">
+                  <button onClick={handleResetRecord} className="w-14 h-14 bg-slate-100 text-slate-400 rounded-xl flex items-center justify-center hover:bg-rose-50 hover:text-rose-500 transition-all border border-slate-200/50 group">
+                    <span className="text-[10px] font-black uppercase tracking-tighter group-hover:scale-95 transition-transform">Reset</span>
                   </button>
-                  <button onClick={handleSave} className="flex-1 bg-gradient-to-br from-rose-400 to-purple-500 text-white rounded-2xl shadow-lg shadow-rose-500/30 font-black tracking-widest text-xl hover:shadow-rose-500/50 hover:-translate-y-0.5 active:translate-y-0 transition-all cursor-pointer">
+                  <button onClick={handleSave} className="flex-1 bg-gradient-to-br from-pink-400 to-purple-500 text-white rounded-xl shadow-lg shadow-pink-500/30 font-black tracking-widest text-lg hover:shadow-pink-500/50 hover:-translate-y-0.5 active:translate-y-0 transition-all cursor-pointer">
                     RECORD SAVE
                   </button>
                 </div>

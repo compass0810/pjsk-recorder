@@ -75,6 +75,7 @@ export const db = {
         results[`${r.song_no}-${r.difficulty}`] = {
           songNo: r.song_no,
           difficulty: r.difficulty as any,
+          perfectPlus: r.perfect_plus || 0,
           perfect: r.perfect,
           great: r.great,
           good: r.good,
@@ -95,6 +96,7 @@ export const db = {
         user_id: userId,
         song_no: r.songNo,
         difficulty: r.difficulty,
+        perfect_plus: r.perfectPlus || 0,
         perfect: r.perfect,
         great: r.great,
         good: r.good,
@@ -118,6 +120,7 @@ export const db = {
         user_id: userId,
         song_no: r.songNo,
         difficulty: r.difficulty,
+        perfect_plus: r.perfectPlus || 0,
         perfect: r.perfect,
         great: r.great,
         good: r.good,
