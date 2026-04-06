@@ -23,7 +23,7 @@ export default function RhythmGameHub() {
       shadow: "shadow-orange-500/30",
       bgLayer: "bg-orange-50",
       path: "/yumeste",
-      isReady: false,
+      isReady: true,
       icon: "★"
     },
     {

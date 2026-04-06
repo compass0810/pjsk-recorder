@@ -40,6 +40,15 @@ export default function MaintenanceGuard({ children }: { children: React.ReactNo
 
   if (isLoading) return <>{children}</>;
 
+  const handleAdminLogin = async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: window.location.origin,
+      },
+    });
+  };
+
   if (maintenance?.active && !isAdmin) {
     const isEmergency = maintenance.type === "emergency";
     
@@ -75,8 +84,19 @@ export default function MaintenanceGuard({ children }: { children: React.ReactNo
             </div>
           </div>
           
-          <div className="space-y-1">
+          <div className="space-y-6 w-full">
             <p className="text-slate-400 font-bold text-[10px]">しばらく経ってから再度お試しください</p>
+            
+            <div className="pt-6 border-t border-slate-100">
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Administrator Access</p>
+              <button
+                onClick={handleAdminLogin}
+                className="w-full py-3.5 rounded-2xl bg-slate-900 text-white font-black text-[11px] hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 active:scale-95 flex items-center justify-center gap-2"
+              >
+                管理者としてログイン
+              </button>
+            </div>
+
             <p className="text-slate-300 font-bold text-[8px]">© 2026 PJSK Recorder Team</p>
           </div>
         </div>

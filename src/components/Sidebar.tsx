@@ -18,11 +18,15 @@ export default function Sidebar() {
     checkAdmin();
   }, []);
 
-  const navItems = [
-    { label: "ハブページ", short: "HB", path: "/" },
-    { label: "リザルト記録", short: "R", path: "/pjsk" },
-    { label: "ランクマレコーダー", short: "RM", path: "/rankmatch" },
-    { label: "譜面メーカー情報", short: "MK", path: "/maker" },
+  const isYumeste = pathname.startsWith("/yumeste");
+
+  let navItems = [
+    { label: "トップページ", short: "TB", path: "/" },
+    isYumeste ? { label: "ユメステ記録", short: "YM", path: "/yumeste" } : { label: "リザルト記録", short: "R", path: "/pjsk" },
+    ...(!isYumeste ? [
+      { label: "ランクマッチ", short: "RM", path: "/rankmatch" },
+      { label: "譜面メーカー", short: "MK", path: "/maker" },
+    ] : []),
     { label: "アップデートログ", short: "LG", path: "/log" },
     { label: "使い方・注意事項", short: "NOTE", path: "/notice" },
     { label: "不具合報告・要望", short: "BG", path: "/bugs" },
@@ -57,8 +61,8 @@ export default function Sidebar() {
         <div className="w-10 h-10 rounded-xl shrink-0 bg-gradient-to-br from-cyan-400 to-blue-500 shadow-lg flex items-center justify-center text-white font-bold text-xl" title="Menu">
           ♪
         </div>
-        <h1 className={`text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-600 to-blue-600 tracking-tight whitespace-nowrap overflow-hidden transition-all duration-300 ${isOpen ? 'w-auto opacity-100' : 'w-0 opacity-0'}`}>
-          {pathname === '/' ? "音ゲーレコーダー" : "プロセカレコーダー"}
+        <h1 className={`text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r ${isYumeste ? 'from-rose-500 to-purple-600' : 'from-cyan-600 to-blue-600'} tracking-tight whitespace-nowrap overflow-hidden transition-all duration-300 ${isOpen ? 'w-auto opacity-100' : 'w-0 opacity-0'}`}>
+          {isYumeste ? "ユメステレコーダー" : (pathname === '/' ? "音ゲーレコーダー" : "プロセカレコーダー")}
         </h1>
       </div>
 
@@ -91,7 +95,7 @@ export default function Sidebar() {
       </nav>
 
       <div className={`mt-auto pt-6 pb-6 border-t border-white/50 text-xs text-slate-500 font-bold overflow-hidden whitespace-nowrap transition-all duration-300 ${isOpen ? 'px-6 opacity-100' : 'px-0 h-0 p-0 opacity-0 pointer-events-none border-0'}`}>
-        v1.1.0.beta2(2026.04.06)<br />
+        v1.1.0.beta3(2026.04.06)<br />
         © 2026 PJSK Recorder
       </div>
     </aside>

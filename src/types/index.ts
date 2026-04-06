@@ -9,7 +9,7 @@ export interface Song {
   "コンボ\n(APD)": string;
 }
 
-export type Difficulty = "EXP" | "MAS" | "APD";
+export type Difficulty = "EXP" | "MAS" | "APD" | "STELLA" | "OLIVIER";
 
 export interface Top100Player {
   rank: number;
