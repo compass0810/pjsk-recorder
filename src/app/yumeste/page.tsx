@@ -1,15 +1,15 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { fetchYumesteSongs, YumesteSong } from "@/lib/api_yumeste";
+import { fetchYumesteSongs } from "@/lib/api_yumeste";
 import { db } from "@/lib/db";
 import { supabase } from "@/lib/supabase";
-import { PlayResult, Difficulty } from "@/types";
+import { PlayResult, YumesteDifficulty, YumesteSong } from "@/types";
 import { calculateSingleRating, calculateAverageOfTopN } from "@/lib/rating";
 
 interface ListEntry {
   song: YumesteSong;
-  diff: Difficulty;
+  diff: YumesteDifficulty;
   level: string;
 }
 
@@ -56,7 +56,7 @@ const SongListItem = React.memo(({
   onClick: () => void,
   onDoubleClick?: () => void,
   calculateAccuracy: (r: any, total: number) => string | null,
-  getNotes: (s: YumesteSong, d: Difficulty) => number,
+  getNotes: (s: YumesteSong, d: YumesteDifficulty) => number,
   rating: number | null,
   style: React.CSSProperties
 }) => {
@@ -126,7 +126,7 @@ export default function YumesteResultRecorder() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [filterLevel, setFilterLevel] = useState("ALL");
-  const [filterDiff, setFilterDiff] = useState<Difficulty | "ALL">("ALL");
+  const [filterDiff, setFilterDiff] = useState<YumesteDifficulty | "ALL">("ALL");
   const [filterClearType, setFilterClearType] = useState<"ALL" | "NOCLEAR" | "AP" | "FC" | "CLEAR">("ALL");
   const [sortType, setSortType] = useState<"name_asc" | "level_desc" | "level_asc" | "acc_desc" | "acc_asc">("level_desc");
 
@@ -213,7 +213,7 @@ export default function YumesteResultRecorder() {
   const totalRating = useMemo(() => {
     const allRatings: number[] = [];
     songs.forEach(song => {
-      const diffs: Difficulty[] = ["STELLA", "OLIVIER"];
+      const diffs: YumesteDifficulty[] = ["STELLA", "OLIVIER"];
       diffs.forEach(diff => {
         const levelStr = diff === "STELLA" ? song.STELLA難易度 : song.OLIVIER難易度;
         if (levelStr && levelStr !== "-" && levelStr !== "***" && levelStr.trim() !== "") {
@@ -240,7 +240,7 @@ export default function YumesteResultRecorder() {
     return Array.from(levels).sort((a, b) => parseLevel(a) - parseLevel(b) || a.localeCompare(b));
   }, [songs]);
 
-  const getNotes = useCallback((song: YumesteSong, diff: Difficulty) => {
+  const getNotes = useCallback((song: YumesteSong, diff: YumesteDifficulty) => {
     const val = diff === "STELLA" ? song.STELLAノーツ : song.OLIVIERノーツ;
     if (!val) return 0;
     return Number(String(val).replace(/,/g, "")) || 0;
