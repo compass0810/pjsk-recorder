@@ -9,7 +9,21 @@ export interface Song {
   "コンボ\n(APD)": string;
 }
 
-export type Difficulty = "EXP" | "MAS" | "APD" | "STELLA" | "OLIVIER";
+export interface YumesteSong {
+  No: string;
+  曲名: string;
+  ユニット: string;
+  STELLA難易度: string;
+  OLIVIER難易度: string;
+  STELLAノーツ: string;
+  OLIVIERノーツ: string;
+  時間: string;
+}
+
+export type PjskDifficulty = "EXP" | "MAS" | "APD";
+export type YumesteDifficulty = "STELLA" | "OLIVIER";
+export type Difficulty = PjskDifficulty | YumesteDifficulty;
+export type ClearType = "CLEAR" | "FC" | "AP" | "FAILED";
 
 export interface Top100Player {
   rank: number;
@@ -26,7 +40,7 @@ export interface PlayResult {
   bad: number;
   miss: number;
   perfect: number;
-  clearType: "CLEAR" | "FC" | "AP" | "FAILED";
+  clearType: ClearType;
   accuracy: string; // 達成率
   updatedAt: number;
 }
@@ -38,8 +52,8 @@ export interface RankMatchRecord {
   difficulty: Difficulty;
   level: string;
   rivalName: string;
-  you: { perfect: number; great: number; good: number; bad: number; miss: number; clearType: "CLEAR" | "FC" | "AP" | "FAILED" };
-  rival: { perfect: number; great: number; good: number; bad: number; miss: number; clearType: "CLEAR" | "FC" | "AP" | "FAILED" };
+  you: { perfect: number; great: number; good: number; bad: number; miss: number; clearType: ClearType };
+  rival: { perfect: number; great: number; good: number; bad: number; miss: number; clearType: ClearType };
   result: "WIN" | "LOSE" | "DRAW";
   pointChange: number; // +1.0, -1.0, +1.2 など
   isCountPoints?: boolean; // ポイント計算に含めるかどうか

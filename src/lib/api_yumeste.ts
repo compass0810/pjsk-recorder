@@ -1,15 +1,5 @@
 import Papa from "papaparse";
-
-export interface YumesteSong {
-  No: string;
-  曲名: string;
-  ユニット: string;
-  STELLA難易度: string;
-  OLIVIER難易度: string;
-  STELLAノーツ: string;
-  OLIVIERノーツ: string;
-  時間: string;
-}
+import { YumesteSong } from "../types";
 
 const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRtk9zz0W49lgQGID9nOFGFvm7OfGCN07q5kYT2VikOJ8CDZJb4C4-7FEv-uKT9Vl1aLHdfYvKoqAiz/pub?gid=0&single=true&output=csv";
 
@@ -75,6 +65,6 @@ export async function fetchYumesteSongs(onProgress?: (loaded: number, total: num
     });
   } catch (error) {
     console.error("Error fetching yumeste songs:", error);
-    return [];
+    throw error;
   }
 }

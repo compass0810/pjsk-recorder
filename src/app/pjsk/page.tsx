@@ -20,6 +20,7 @@ const SongListItem = React.memo(({
   isSelected, 
   isQuickAPMode, 
   onClick, 
+  onDoubleClick,
   calculateAccuracy, 
   getNotes,
   rating,
@@ -30,6 +31,7 @@ const SongListItem = React.memo(({
   isSelected: boolean, 
   isQuickAPMode: boolean,
   onClick: () => void,
+  onDoubleClick?: () => void,
   calculateAccuracy: (r: any, total: number) => string | null,
   getNotes: (s: Song, d: Difficulty) => number,
   rating: number | null,
@@ -42,6 +44,7 @@ const SongListItem = React.memo(({
   return (
     <button
       onClick={onClick}
+      onDoubleClick={onDoubleClick}
       style={style}
       className={`w-full text-left p-3 rounded-[1.25rem] transition-all duration-300 flex items-center gap-3 animate-fade-in-up
         ${isSelected ? `bg-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] ring-2 ${diffRingColor} scale-100 relative z-10` : "bg-white/50 border border-slate-200/50 hover:bg-white/80 hover:shadow-md hover:scale-[1.01]"}
@@ -560,7 +563,7 @@ export default function ResultRecorder() {
                 className={`text-[10px] font-black px-2 py-1 rounded-lg transition-all uppercase tracking-tighter shadow-sm border
                   ${isQuickAPMode ? "bg-sky-500 text-white border-sky-600 ring-2 ring-sky-300" : "bg-white text-slate-400 border-slate-200 hover:bg-slate-50"}
                 `}
-                title="リストをクリックするだけでAP登録するモード"
+                title="リストをダブルクリックですぐにAP登録するモード"
               >
                 Quick AP {isQuickAPMode ? "ON" : "OFF"}
               </button>
@@ -616,7 +619,8 @@ export default function ResultRecorder() {
                 saved={saved}
                 isSelected={isSelected}
                 isQuickAPMode={isQuickAPMode}
-                onClick={() => isQuickAPMode ? handleQuickAP(entry) : setSelectedEntry(entry)}
+                onClick={() => !isQuickAPMode && setSelectedEntry(entry)}
+                onDoubleClick={() => isQuickAPMode && handleQuickAP(entry)}
                 calculateAccuracy={calculateAccuracy}
                 getNotes={getNotes}
                 rating={saved ? calculateSingleRating(entry.level, parseFloat(saved.accuracy)) : null}

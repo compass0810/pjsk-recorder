@@ -11,6 +11,11 @@ export default function Sidebar() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [appVersion, setAppVersion] = useState("v---.---.---");
   const [activeGame, setActiveGame] = useState<"pjsk" | "yumeste">("pjsk");
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     const fetchEnv = async () => {
@@ -47,6 +52,12 @@ export default function Sidebar() {
   // ▼ 要件に従い、トップページではサイドバーを表示しない
   if (pathname === "/") {
     return null;
+  }
+
+  if (!mounted) {
+    return (
+      <aside className={`${isOpen ? 'w-70' : 'w-20'} min-h-[100dvh] bg-white/40 backdrop-blur-md border-r border-white/50 relative z-10 transition-all duration-300 pointer-events-none`}></aside>
+    );
   }
 
   // ▼ ゲームごとの設定

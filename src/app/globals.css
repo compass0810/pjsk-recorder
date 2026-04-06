@@ -13,15 +13,23 @@
   --color-sekai-bg-start: #e0faff;
   --color-sekai-bg-end: #8fe5ff;
   
-  --color-judge-perfect: #f59e0b; /* アンバー/イエロー系 */
-  --color-judge-great: #ec4899;   /* ピンク系 */
-  --color-judge-good: #14b8a6;    /* 青緑系 */
-  --color-judge-bad: #8b5cf6;     /* 紫系 */
-  --color-judge-miss: #6b7280;    /* グレー系 */
+  /* 旧設定からの移行と統合 */
+  --color-pjsk-bg: #f0f2f5;
+  --color-pjsk-main: #00ffee;
+  --color-pjsk-pink: #ff3388;
+  --color-pjsk-purple: #8844ff;
+  --color-pjsk-red: #ff4444;
+  --color-pjsk-dark: #1a1a2e;
 
-  --color-diff-expert: #f43f5e;   /* ローズ系 */
-  --color-diff-master: #a855f7;    /* パープル系 */
-  --color-diff-append: #ff77aa;   /* ピンク寄り */
+  --color-judge-perfect: #f59e0b;
+  --color-judge-great: #ec4899;
+  --color-judge-good: #14b8a6;
+  --color-judge-bad: #8b5cf6;
+  --color-judge-miss: #6b7280;
+
+  --color-diff-expert: #f43f5e;
+  --color-diff-master: #a855f7;
+  --color-diff-append: #ff77aa;
 
   --animate-fade-in-up: fade-in-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   --animate-pulse-slow: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;

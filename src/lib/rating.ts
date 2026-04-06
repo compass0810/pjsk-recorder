@@ -37,21 +37,48 @@ export function calculateSingleRating(level: string | number, accuracy: number):
 /**
  * 全体レートを計算します。
  * 上位30曲の単曲レートの合計を30で割ったもの。
+ * results: ユーザーの全記録
+ * songs: 楽曲マスターデータ
  */
 export function calculateTotalRating(results: Record<string, PlayResult>, songs: any[]): number {
-  const ratings: number[] = [];
+  const allRatings: number[] = [];
 
-  // 全リザルトをループしてレートを計算
-  Object.values(results).forEach((res) => {
-    // 曲データからレベルを取得する必要がある
-    // Note: page.tsx で生成される listEntries の情報があれば効率的
-    // ここでは簡易的に、results に含まれるデータから計算
-    // ただし results には level が含まれていないため、外部からレベル情報を渡す必要がある
+  // 楽曲マスターから全譜面を走査
+  songs.forEach(song => {
+    // PJSK形式 (X, M, A)
+    const pjskDiffs = {
+      "EXP": song.X,
+      "MAS": song.M,
+      "APD": song.A
+    };
+
+    Object.entries(pjskDiffs).forEach(([diff, level]) => {
+      if (level && level !== "-" && level.trim() !== "") {
+        const res = results[`${song.No}-${diff}`];
+        if (res) {
+          allRatings.push(calculateSingleRating(level, parseFloat(res.accuracy)));
+        }
+      }
+    });
+
+    // Yumeste形式 (STELLA難易度, OLIVIER難易度)
+    const yumesteDiffs = {
+      "STELLA": song.STELLA難易度,
+      "OLIVIER": song.OLIVIER難易度
+    };
+
+    Object.entries(yumesteDiffs).forEach(([diff, level]) => {
+      if (level && level !== "-" && level.trim() !== "") {
+        // Yumesteのキー形式は YM_No-DIFF
+        const res = results[`YM_${song.No}-${diff}`];
+        if (res) {
+          allRatings.push(calculateSingleRating(level, parseFloat(res.accuracy)));
+        }
+      }
+    });
   });
 
-  // 実際には page.tsx 内で計算する方が効率的なので、
-  // ここでは上位N件の平均を取る汎用関数を提供
-  return 0;
+  return calculateAverageOfTopN(allRatings, 30);
 }
 
 /**

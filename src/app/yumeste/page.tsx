@@ -43,6 +43,7 @@ const SongListItem = React.memo(({
   isSelected, 
   isQuickAPMode, 
   onClick, 
+  onDoubleClick,
   calculateAccuracy, 
   getNotes,
   rating,
@@ -53,6 +54,7 @@ const SongListItem = React.memo(({
   isSelected: boolean, 
   isQuickAPMode: boolean,
   onClick: () => void,
+  onDoubleClick?: () => void,
   calculateAccuracy: (r: any, total: number) => string | null,
   getNotes: (s: YumesteSong, d: Difficulty) => number,
   rating: number | null,
@@ -65,6 +67,7 @@ const SongListItem = React.memo(({
   return (
     <button
       onClick={onClick}
+      onDoubleClick={onDoubleClick}
       style={style}
       className={`w-full text-left p-3 rounded-[1.25rem] transition-all duration-300 flex items-center gap-3 animate-fade-in-up
         ${isSelected ? `bg-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] ring-2 ${diffRingColor} scale-100 relative z-10` : "bg-white/50 border border-slate-200/50 hover:bg-white/80 hover:shadow-md hover:scale-[1.01]"}
@@ -562,7 +565,8 @@ export default function YumesteResultRecorder() {
             return (
               <SongListItem 
                 key={resultKey} entry={entry} saved={saved} isSelected={isSelected} isQuickAPMode={isQuickAPMode}
-                onClick={() => isQuickAPMode ? handleQuickAP(entry) : setSelectedEntry(entry)}
+                onClick={() => !isQuickAPMode && setSelectedEntry(entry)}
+                onDoubleClick={() => isQuickAPMode && handleQuickAP(entry)}
                 calculateAccuracy={calculateAccuracy} getNotes={getNotes}
                 rating={saved ? calculateSingleRating(String(levelNum), parseFloat(saved.accuracy)) : null}
                 style={{ animationDelay: `${idx * 0.03}s` }}

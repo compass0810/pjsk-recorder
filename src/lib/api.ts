@@ -49,7 +49,7 @@ export async function fetchSongs(onProgress?: (loaded: number, total: number) =>
     });
   } catch (error) {
     console.error("Error fetching songs:", error);
-    return [];
+    throw error;
   }
 }
 
@@ -72,6 +72,6 @@ export async function fetchUpdateLogs(): Promise<UpdateLog[]> {
     return results.data.filter(l => l.version && l.version.trim() !== "");
   } catch (error) {
     console.error("Error fetching logs:", error);
-    return [];
+    throw error;
   }
 }

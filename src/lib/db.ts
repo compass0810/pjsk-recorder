@@ -1,5 +1,5 @@
 import { supabase } from "./supabase";
-import { RankMatchRecord, PlayResult, Bug, BugComment } from "../types";
+import { RankMatchRecord, PlayResult, Bug, BugComment, ClearType, PjskDifficulty, YumesteDifficulty } from "../types";
 
 // DB Access Layer (Supabase / Cloud Version)
 // 全データはサーバー側でユーザーIDに紐づけて保存されます
@@ -30,8 +30,8 @@ const normalizeString = (v: unknown, fallback: string = "") => {
   return typeof v === "string" ? v : fallback;
 };
 
-const normalizeClearType = (v: unknown) => {
-  return (typeof v === "string" && (v === "CLEAR" || v === "FC" || v === "AP" || v === "FAILED")) ? v : "CLEAR";
+const normalizeClearType = (v: unknown): ClearType => {
+  return (typeof v === "string" && (v === "CLEAR" || v === "FC" || v === "AP" || v === "FAILED")) ? v as ClearType : "CLEAR";
 };
 
 export const db = {
@@ -74,14 +74,14 @@ export const db = {
       data?.forEach(r => {
         results[`${r.song_no}-${r.difficulty}`] = {
           songNo: r.song_no,
-          difficulty: r.difficulty as any,
+          difficulty: r.difficulty as PjskDifficulty | YumesteDifficulty,
           perfectPlus: r.perfect_plus || 0,
           perfect: r.perfect,
           great: r.great,
           good: r.good,
           bad: r.bad,
           miss: r.miss,
-          clearType: r.clear_type as any,
+          clearType: r.clear_type as ClearType,
           accuracy: r.accuracy.toString(),
           updatedAt: new Date(r.updated_at).getTime()
         };
@@ -162,7 +162,7 @@ export const db = {
         id: r.id,
         timestamp: Number(r.timestamp),
         songName: r.song_name,
-        difficulty: r.difficulty as any,
+        difficulty: r.difficulty as PjskDifficulty,
         level: r.level_num,
         rivalName: r.rival_name,
         you: {
@@ -171,7 +171,7 @@ export const db = {
           good: r.you_good,
           bad: r.you_bad,
           miss: r.you_miss,
-          clearType: r.you_clear_type as any
+          clearType: r.you_clear_type as ClearType
         },
         rival: {
           perfect: r.rival_perfect || 0,
@@ -179,9 +179,9 @@ export const db = {
           good: r.rival_good,
           bad: r.rival_bad,
           miss: r.rival_miss,
-          clearType: r.rival_clear_type as any
+          clearType: r.rival_clear_type as ClearType
         },
-        result: r.match_result as any,
+        result: r.match_result as "WIN" | "LOSE" | "DRAW",
         pointChange: isNaN(parseFloat(r.point_change)) ? 0 : parseFloat(r.point_change),
         isCountPoints: r.is_count_points ?? true,
         isSynced: true
@@ -511,7 +511,12 @@ export const db = {
     },
     setAppVersion: async (version: string) => {
       // system_config に行がない場合の upsert
-      await supabase.from("system_config").upsert({ key: "app_version", value: version }, { onConflict: "key" });
+      // jsonbカラムに対しては適切なJSONとしてパースできる値を送る必要があるためエスケープする
+      const { error } = await supabase.from("system_config").upsert({ key: "app_version", value: `"${version}"` }, { onConflict: "key" });
+      if (error) {
+        console.error("setAppVersion error:", error);
+        throw error;
+      }
     }
   }
 };

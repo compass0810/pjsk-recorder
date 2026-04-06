@@ -5,6 +5,8 @@ import { fetchSongs } from "@/lib/api";
 import { db } from "@/lib/db";
 import { supabase } from "@/lib/supabase";
 import { Song, RankMatchRecord, Difficulty, Top100Player } from "@/types";
+import { calculateSimilarity } from "@/lib/utils";
+import { useDebounce } from "@/hooks/useDebounce";
 
 const RANKS = [
   { id: "master", name: "Master", base: 0, color: "from-purple-400 to-fuchsia-400", bg: "bg-purple-50", text: "text-purple-600", symbol: "✦" },
@@ -34,30 +36,7 @@ function getRankInfo(totalPoints: number) {
   return { ...RANKS[6], class: 1, pointInClass: 0 };
 }
 
-function calculateSimilarity(s1: string, s2: string): number {
-  if (!s1 || !s2) return 0;
-  if (s1 === s2) return 1;
-  s1 = s1.toLowerCase();
-  s2 = s2.toLowerCase();
-  const costs: number[] = [];
-  for (let i = 0; i <= s1.length; i++) {
-    let lastValue = i;
-    for (let j = 0; j <= s2.length; j++) {
-      if (i === 0) costs[j] = j;
-      else if (j > 0) {
-        let newValue = costs[j - 1];
-        if (s1.charAt(i - 1) !== s2.charAt(j - 1)) {
-          newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
-        }
-        costs[j - 1] = lastValue;
-        lastValue = newValue;
-      }
-    }
-    if (i > 0) costs[s2.length] = lastValue;
-  }
-  const maxLen = Math.max(s1.length, s2.length);
-  return (maxLen - costs[s2.length]) / maxLen;
-}
+
 
 export default function RankMatchRecorder() {
   const [songs, setSongs] = useState<Song[]>([]);
@@ -72,6 +51,7 @@ export default function RankMatchRecorder() {
   const [selectedSongName, setSelectedSongName] = useState("");
   const [selectedDiff, setSelectedDiff] = useState<Difficulty>("MAS");
   const [rivalName, setRivalName] = useState("");
+  const debouncedRivalName = useDebounce(rivalName, 500);
 
   const [you, setYou] = useState({ gr: 0, go: 0, b: 0, m: 0, isZeroLife: false });
   const [rival, setRival] = useState({ gr: 0, go: 0, b: 0, m: 0 });
@@ -459,8 +439,9 @@ export default function RankMatchRecorder() {
   const diffColor = selectedDiff === "EXP" ? "var(--color-diff-expert)" : selectedDiff === "MAS" ? "var(--color-diff-master)" : "var(--color-diff-append)";
 
   const matchedTop100Player = useMemo(() => {
-    return top100Players.find(p => calculateSimilarity(p.name, rivalName) >= 0.8);
-  }, [top100Players, rivalName]);
+    if (!debouncedRivalName || debouncedRivalName.length < 2) return null;
+    return top100Players.find(p => calculateSimilarity(p.name, debouncedRivalName) >= 0.8);
+  }, [top100Players, debouncedRivalName]);
 
   return (
     <div className="flex flex-col h-full p-6 lg:p-8 gap-6 absolute inset-0 overflow-y-auto w-full">
