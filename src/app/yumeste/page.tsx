@@ -229,7 +229,7 @@ const SeishoBreakdown = ({ level, accuracy, inputs, clearType, saved }: { level:
 };
 
 const InputGroup = ({ label, value, onChange, color }: { label: string, value: number, onChange: (v: number) => void, color: string }) => (
-  <div className="bg-white/60 p-4 rounded-[1.5rem] border border-white/80 shadow-sm flex flex-col justify-center">
+  <div className="bg-white/60 p-2.5 rounded-2xl border border-white/80 shadow-sm flex flex-col justify-center">
     <div className={`text-[10px] font-black uppercase tracking-widest mb-1 leading-none ${color}`}>{label}</div>
     <div className="flex items-center gap-4">
       <input
@@ -817,19 +817,20 @@ export default function YumesteResultRecorder() {
               </div>
             </div>
 
-            <div className="px-10 pb-8 relative z-10 flex flex-col gap-6">
-              <div className="grid grid-cols-2 gap-4">
+            <div className="px-10 pb-8 relative z-10 flex flex-col gap-5">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2 bg-cyan-50/50 p-3 rounded-2xl border border-cyan-100/50 flex flex-col justify-center relative overflow-hidden group">
+                  <div className="absolute inset-0 bg-gradient-to-r from-cyan-400/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <div className="text-[10px] font-black text-cyan-600 uppercase tracking-widest mb-0.5 leading-none relative z-10">PERFECT+ (AUTO)</div>
+                  <div className="text-3xl font-black text-cyan-500 tabular-nums leading-none relative z-10">
+                    {calculatePerfectPlus()}
+                  </div>
+                </div>
                 <InputGroup label="PERFECT" value={inputs.perfect} onChange={v => setInputs(prev => ({ ...prev, perfect: v }))} color="text-yellow-500" />
                 <InputGroup label="GREAT" value={inputs.great} onChange={v => setInputs(prev => ({ ...prev, great: v }))} color="text-emerald-500" />
                 <InputGroup label="GOOD" value={inputs.good} onChange={v => setInputs(prev => ({ ...prev, good: v }))} color="text-sky-500" />
                 <InputGroup label="BAD" value={inputs.bad} onChange={v => setInputs(prev => ({ ...prev, bad: v }))} color="text-orange-500" />
                 <InputGroup label="MISS" value={inputs.miss} onChange={v => setInputs(prev => ({ ...prev, miss: v }))} color="text-rose-500" />
-                <div className="bg-slate-50 p-4 rounded-[1.5rem] border border-slate-100 flex flex-col justify-center">
-                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">PERFECT+ (AUTO)</div>
-                  <div className="text-2xl font-black text-slate-800 tabular-nums leading-none">
-                    {calculatePerfectPlus()}
-                  </div>
-                </div>
               </div>
 
               <div className="flex gap-4">

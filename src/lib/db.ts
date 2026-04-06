@@ -524,9 +524,7 @@ export const db = {
       return typeof data?.value === "string" ? data.value : "v1.1.0.beta3(2026.04.06)";
     },
     setAppVersion: async (version: string) => {
-      // system_config に行がない場合の upsert
-      // jsonbカラムに対しては適切なJSONとしてパースできる値を送る必要があるためエスケープする
-      const { error } = await supabase.from("system_config").upsert({ key: "app_version", value: `"${version}"` }, { onConflict: "key" });
+      const { error } = await supabase.from("system_config").upsert({ key: "app_version", value: version }, { onConflict: "key" });
       if (error) {
         console.error("setAppVersion error:", error);
         throw error;
