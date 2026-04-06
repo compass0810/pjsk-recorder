@@ -5,6 +5,7 @@ import { fetchSongs } from "@/lib/api";
 import { db } from "@/lib/db";
 import { supabase } from "@/lib/supabase";
 import { Song, PlayResult, Difficulty } from "@/types";
+import { calculateSingleRating, calculateAverageOfTopN } from "@/lib/rating";
 
 interface ListEntry {
   song: Song;
@@ -21,6 +22,7 @@ const SongListItem = React.memo(({
   onClick, 
   calculateAccuracy, 
   getNotes,
+  rating,
   style 
 }: { 
   entry: ListEntry, 
@@ -30,6 +32,7 @@ const SongListItem = React.memo(({
   onClick: () => void,
   calculateAccuracy: (r: any, total: number) => string | null,
   getNotes: (s: Song, d: Difficulty) => number,
+  rating: number | null,
   style: React.CSSProperties
 }) => {
   const diffColor = entry.diff === "EXP" ? "bg-[var(--color-diff-expert)]" : entry.diff === "MAS" ? "bg-[var(--color-diff-master)]" : "bg-[var(--color-diff-append)]";
@@ -72,6 +75,11 @@ const SongListItem = React.memo(({
               </span>
             )}
             <span className={`text-xs font-black font-mono ${isSelected ? diffTextColor : "text-slate-500"}`}>{parseFloat(saved.accuracy).toFixed(4)}%</span>
+            {rating !== null && (
+              <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500 ml-auto tabular-nums">
+                {rating.toFixed(2)}
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -182,6 +190,30 @@ export default function ResultRecorder() {
       return 0;
     });
   }, [songs, results, searchQuery, filterDiff, filterLevel, filterClearType, sortType]);
+
+  // 全体レートの計算
+  const totalRating = useMemo(() => {
+    // 全譜面の全記録からレートを計算
+    const allRatings: number[] = [];
+    
+    // songsから全難易度の譜面を走査（filterなしの全譜面が対象）
+    songs.forEach(song => {
+      const diffs: Difficulty[] = ["EXP", "MAS", "APD"];
+      diffs.forEach(diff => {
+        const levelKey = diff === "EXP" ? "X" : diff === "MAS" ? "M" : "A";
+        const levelStr = song[levelKey as keyof Song];
+        if (levelStr && levelStr !== "-" && levelStr.trim() !== "") {
+          const res = results[`${song.No}-${diff}`];
+          if (res) {
+            const r = calculateSingleRating(levelStr, parseFloat(res.accuracy));
+            allRatings.push(r);
+          }
+        }
+      });
+    });
+
+    return calculateAverageOfTopN(allRatings, 30);
+  }, [songs, results]);
 
   const levelOptions = useMemo(() => {
     const levels = new Set<string>();
@@ -487,6 +519,21 @@ export default function ResultRecorder() {
 
   return (
     <div className="flex h-full p-6 lg:p-8 gap-6 absolute inset-0 overflow-hidden">
+      {/* 全体レート表示 (画面右上) */}
+      <div className="fixed top-8 right-8 z-[60] animate-fade-in-up">
+        <div className="bg-white/80 backdrop-blur-xl border border-white/50 rounded-2xl p-4 shadow-2xl flex flex-col items-end min-w-[140px] group hover:scale-105 transition-all duration-300">
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Total Rating</div>
+          <div className="flex items-baseline gap-1 bg-gradient-to-r from-cyan-600 to-blue-600 bg-clip-text text-transparent">
+            <span className="text-3xl font-black font-mono tracking-tighter">
+              {totalRating.toFixed(2)}
+            </span>
+          </div>
+          <div className="w-full h-1.5 bg-slate-100 rounded-full mt-2 overflow-hidden shadow-inner">
+            <div className="h-full bg-gradient-to-r from-cyan-400 to-blue-500 transition-all duration-1000" style={{ width: `${Math.min(100, (totalRating / 45) * 100)}%` }} />
+          </div>
+        </div>
+      </div>
+
       {/* Toast */}
       <div className={`fixed top-6 right-6 z-50 transition-all duration-500 transform ${toastMessage ? "translate-x-0 opacity-100" : "translate-x-8 opacity-0 pointer-events-none"}`}>
         <div className="bg-white/90 backdrop-blur border-l-4 border-cyan-400 p-4 rounded-xl shadow-2xl flex items-center gap-4">
@@ -572,6 +619,7 @@ export default function ResultRecorder() {
                 onClick={() => isQuickAPMode ? handleQuickAP(entry) : setSelectedEntry(entry)}
                 calculateAccuracy={calculateAccuracy}
                 getNotes={getNotes}
+                rating={saved ? calculateSingleRating(entry.level, parseFloat(saved.accuracy)) : null}
                 style={{ animationDelay: `${idx * 0.03}s` }}
               />
             );
@@ -616,6 +664,14 @@ export default function ResultRecorder() {
                 <div className="text-3xl font-black font-mono text-cyan-500 border-b-2 border-cyan-200 pb-1">
                   {results[`${selectedEntry.song.No}-${selectedEntry.diff}`]?.accuracy || "---.----"}<span className="text-lg opacity-70 ml-1">%</span>
                 </div>
+                {results[`${selectedEntry.song.No}-${selectedEntry.diff}`] && (
+                  <div className="mt-2 text-right">
+                    <div className="text-[10px] font-black text-slate-400 tracking-wider uppercase">Current Rating</div>
+                    <div className="text-xl font-black font-mono text-slate-500">
+                      {calculateSingleRating(selectedEntry.level, parseFloat(results[`${selectedEntry.song.No}-${selectedEntry.diff}`]!.accuracy)).toFixed(2)}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
