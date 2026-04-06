@@ -9,29 +9,81 @@ export default function Sidebar() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [appVersion, setAppVersion] = useState("v---.---.---");
+  const [activeGame, setActiveGame] = useState<"pjsk" | "yumeste">("pjsk");
 
   useEffect(() => {
-    const checkAdmin = async () => {
-      const profile = await db.profile.get();
+    const fetchEnv = async () => {
+      const [profile, version] = await Promise.all([
+        db.profile.get(),
+        db.admin.getAppVersion()
+      ]);
       setIsAdmin(!!profile?.is_admin);
+      setAppVersion(version);
     };
-    checkAdmin();
+    fetchEnv();
   }, []);
 
-  const isYumeste = pathname.startsWith("/yumeste");
+  // Update activeGame context based on navigation
+  useEffect(() => {
+    if (pathname === "/") return;
+    
+    // URLからゲームコンテキストを推論
+    if (pathname.startsWith("/pjsk") || pathname.startsWith("/rankmatch") || pathname.startsWith("/maker")) {
+      setActiveGame("pjsk");
+      localStorage.setItem("rgr_active_game", "pjsk");
+    } else if (pathname.startsWith("/yumeste")) {
+      setActiveGame("yumeste");
+      localStorage.setItem("rgr_active_game", "yumeste");
+    } else {
+      // 共通画面（account, log, notice, admin等）の場合はLocalStorageから復元
+      const saved = localStorage.getItem("rgr_active_game");
+      if (saved === "yumeste" || saved === "pjsk") {
+        setActiveGame(saved);
+      }
+    }
+  }, [pathname]);
 
-  let navItems = [
-    { label: "トップページ", short: "TB", path: "/" },
-    isYumeste ? { label: "ユメステ記録", short: "YM", path: "/yumeste" } : { label: "リザルト記録", short: "R", path: "/pjsk" },
-    ...(!isYumeste ? [
+  // ▼ 要件に従い、トップページではサイドバーを表示しない
+  if (pathname === "/") {
+    return null;
+  }
+
+  // ▼ ゲームごとの設定
+  const isYumeste = activeGame === "yumeste";
+  
+  const titleText = isYumeste ? "ユメステレコーダー" : "プロセカレコーダー";
+  const gradientClass = isYumeste ? "from-rose-500 to-purple-600" : "from-cyan-600 to-blue-600";
+  const hoverGradient = isYumeste ? "from-rose-400 to-purple-500" : "from-cyan-400 to-blue-400";
+  const iconColor = isYumeste ? "from-rose-400 to-purple-500" : "from-cyan-400 to-blue-500";
+  const shadowColor = isYumeste ? "shadow-rose-400/20" : "shadow-cyan-400/20";
+  const textHoverColor = isYumeste ? "hover:text-rose-600" : "hover:text-cyan-600";
+
+  // ▼ 表示するメニュー項目
+  const navItems = [];
+  
+  // 各ゲームの専用項目
+  if (isYumeste) {
+    navItems.push(
+      { label: "トップページ", short: "TB", path: "/" },
+      { label: "ユメステ記録", short: "YM", path: "/yumeste" }
+    );
+  } else {
+    navItems.push(
+      { label: "トップページ", short: "TB", path: "/" },
+      { label: "リザルト記録", short: "R", path: "/pjsk" },
       { label: "ランクマッチ", short: "RM", path: "/rankmatch" },
-      { label: "譜面メーカー", short: "MK", path: "/maker" },
-    ] : []),
+      { label: "譜面メーカー", short: "MK", path: "/maker" }
+    );
+  }
+
+  // 全ゲーム共通項目
+  navItems.push(
     { label: "アップデートログ", short: "LG", path: "/log" },
     { label: "使い方・注意事項", short: "NOTE", path: "/notice" },
     { label: "不具合報告・要望", short: "BG", path: "/bugs" },
-    { label: "アカウント", short: "AC", path: "/account" },
-  ];
+    { label: "アカウント", short: "AC", path: "/account" }
+  );
 
   if (isAdmin) {
     navItems.push({ label: "管理ページ", short: "AD", path: "/admin" });
@@ -58,11 +110,11 @@ export default function Sidebar() {
       </button>
 
       <div className={`flex items-center gap-3 p-6 mb-4 transition-all ${isOpen ? 'justify-start' : 'justify-center px-0'}`}>
-        <div className="w-10 h-10 rounded-xl shrink-0 bg-gradient-to-br from-cyan-400 to-blue-500 shadow-lg flex items-center justify-center text-white font-bold text-xl" title="Menu">
-          ♪
+        <div className={`w-10 h-10 rounded-xl shrink-0 bg-gradient-to-br ${iconColor} shadow-lg flex items-center justify-center text-white font-bold text-xl`} title="Menu">
+          {isYumeste ? "★" : "♪"}
         </div>
-        <h1 className={`text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r ${isYumeste ? 'from-rose-500 to-purple-600' : 'from-cyan-600 to-blue-600'} tracking-tight whitespace-nowrap overflow-hidden transition-all duration-300 ${isOpen ? 'w-auto opacity-100' : 'w-0 opacity-0'}`}>
-          {isYumeste ? "ユメステレコーダー" : (pathname === '/' ? "音ゲーレコーダー" : "プロセカレコーダー")}
+        <h1 className={`text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r ${gradientClass} tracking-tight whitespace-nowrap overflow-hidden transition-all duration-300 ${isOpen ? 'w-auto opacity-100' : 'w-0 opacity-0'}`}>
+          {titleText}
         </h1>
       </div>
 
@@ -77,8 +129,8 @@ export default function Sidebar() {
               className={`block rounded-xl font-bold transition-all duration-200 text-sm tracking-wide overflow-hidden whitespace-nowrap
                 ${isOpen ? 'px-4 py-3' : 'px-0 object-center h-12 flex items-center justify-center'}
                 ${isActive
-                  ? "bg-gradient-to-r from-cyan-400 to-blue-400 text-white shadow-md shadow-cyan-400/20 translate-x-1"
-                  : "text-slate-600 hover:bg-white/50 hover:text-cyan-600"
+                  ? `bg-gradient-to-r ${hoverGradient} text-white shadow-md ${shadowColor} translate-x-1`
+                  : `text-slate-600 hover:bg-white/50 ${textHoverColor}`
                 }`}
             >
               {isOpen ? (
@@ -95,8 +147,8 @@ export default function Sidebar() {
       </nav>
 
       <div className={`mt-auto pt-6 pb-6 border-t border-white/50 text-xs text-slate-500 font-bold overflow-hidden whitespace-nowrap transition-all duration-300 ${isOpen ? 'px-6 opacity-100' : 'px-0 h-0 p-0 opacity-0 pointer-events-none border-0'}`}>
-        v1.1.0.beta3(2026.04.06)<br />
-        © 2026 PJSK Recorder
+        {appVersion}<br />
+        © 2026 Recorder Project
       </div>
     </aside>
   );

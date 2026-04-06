@@ -501,6 +501,14 @@ export const db = {
     },
     setMaintenance: async (config: any) => {
       await supabase.from("system_config").update({ value: config }).eq("key", "maintenance");
+    },
+    getAppVersion: async () => {
+      const { data } = await supabase.from("system_config").select("value").eq("key", "app_version").single();
+      return typeof data?.value === "string" ? data.value : "v1.1.0.beta3(2026.04.06)";
+    },
+    setAppVersion: async (version: string) => {
+      // system_config に行がない場合の upsert
+      await supabase.from("system_config").upsert({ key: "app_version", value: version }, { onConflict: "key" });
     }
   }
 };

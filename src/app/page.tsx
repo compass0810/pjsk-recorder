@@ -1,8 +1,19 @@
 "use client";
 
 import Link from "next/link";
+import { useState, useEffect } from "react";
+import { db } from "@/lib/db";
 
 export default function RhythmGameHub() {
+  const [appVersion, setAppVersion] = useState("v---.---.---");
+
+  useEffect(() => {
+    const fetchVersion = async () => {
+      const version = await db.admin.getAppVersion();
+      setAppVersion(version);
+    };
+    fetchVersion();
+  }, []);
   const games = [
     {
       id: "pjsk",
@@ -70,6 +81,11 @@ export default function RhythmGameHub() {
             )
           ))}
         </div>
+      </div>
+
+      <div className="absolute bottom-6 left-0 w-full text-center z-20 pointer-events-none animate-fade-in text-slate-400 font-bold text-xs uppercase tracking-widest">
+        {appVersion}<br />
+        <span className="opacity-50">© 2026 Recorder Project</span>
       </div>
     </div>
   );

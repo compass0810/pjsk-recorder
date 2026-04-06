@@ -10,7 +10,9 @@ export default function AdminPage() {
   const [stats, setStats] = useState({ userCount: 0, resultCount: 0, rankMatchCount: 0, bugCount: 0 });
   const [projectStats, setProjectStats] = useState({ db_size_bytes: 0, total_rows: 0 });
   const [maintenance, setMaintenance] = useState({ active: false, start: "", end: "", type: "regular", reason: "" });
+  const [appVersion, setAppVersion] = useState("v1.1.0.beta3(2026.04.06)");
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [confirmActionType, setConfirmActionType] = useState<"maintenance" | "version">("maintenance");
   const [isLoading, setIsLoading] = useState(true);
   const [toastMessage, setToastMessage] = useState("");
   const [dataTab, setDataTab] = useState<"results" | "rankmatch">("results");
@@ -90,14 +92,16 @@ export default function AdminPage() {
       const profile = await db.profile.get();
       if (profile?.is_admin) {
         setIsAdmin(true);
-        const [s, m, ps] = await Promise.all([
+        const [s, m, ps, v] = await Promise.all([
           db.admin.getStats(),
           db.admin.getMaintenance(),
-          db.admin.getProjectStats()
+          db.admin.getProjectStats(),
+          db.admin.getAppVersion()
         ]);
         setStats(s);
         setMaintenance(m);
         setProjectStats(ps);
+        setAppVersion(v);
       }
     }
     setIsLoading(false);
@@ -105,14 +109,20 @@ export default function AdminPage() {
 
   const handleUpdateMaintenance = async () => {
     try {
-      await db.admin.setMaintenance(maintenance);
-      setToastMessage("システム設定を更新しました。");
+      if (confirmActionType === "maintenance") {
+        await db.admin.setMaintenance(maintenance);
+        setToastMessage("メンテナンス設定を更新しました。");
+      } else {
+        await db.admin.setAppVersion(appVersion);
+        setToastMessage("バージョン番号を更新しました。");
+      }
       setIsConfirmModalOpen(false);
     } catch (e) {
       setToastMessage("エラーが発生しました。");
     }
     setTimeout(() => setToastMessage(""), 3000);
   };
+
 
   if (isLoading) {
     return (
@@ -278,6 +288,22 @@ export default function AdminPage() {
                 </div>
 
                 <div className="space-y-8">
+                  <div>
+                    <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-3 px-1">Application Version</label>
+                    <input 
+                      type="text" value={appVersion} onChange={(e) => setAppVersion(e.target.value)}
+                      className="w-full bg-white/50 border border-white rounded-2xl p-5 font-bold outline-none focus:ring-4 ring-white/30 text-sm shadow-sm backdrop-blur"
+                      placeholder="例: v1.1.0..."
+                    />
+                    <div className="mt-2 text-right">
+                      <button 
+                        onClick={() => { setConfirmActionType("version"); setIsConfirmModalOpen(true); }}
+                        className="px-4 py-2 bg-purple-500 text-white rounded-xl text-xs font-black shadow-sm shadow-purple-200 hover:bg-purple-600 transition-all active:scale-95"
+                      >
+                        バージョンのみ更新
+                      </button>
+                    </div>
+                  </div>
                    <div>
                     <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-3 px-1">Scheduled Start</label>
                     <input 
@@ -300,7 +326,7 @@ export default function AdminPage() {
 
             <div className="p-10 bg-white/40 border-t border-white/50">
               <button 
-                onClick={() => setIsConfirmModalOpen(true)}
+                onClick={() => { setConfirmActionType("maintenance"); setIsConfirmModalOpen(true); }}
                 className="w-full bg-slate-800 text-white py-6 rounded-[2rem] font-black tracking-widest shadow-2xl hover:bg-black transition-all active:scale-95 text-lg"
               >
                 APPLY CONFIGURATION
@@ -406,9 +432,11 @@ export default function AdminPage() {
               <div className="w-24 h-24 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-8 text-4xl shadow-inner animate-pulse">⚠️</div>
               <h3 className="text-3xl font-black text-slate-800 mb-4 tracking-tighter">設定を更新しますか？</h3>
               <p className="text-slate-500 font-bold leading-relaxed px-6">
-                {maintenance.active 
-                  ? "メンテンナンスを【有効】に設定します。即座に全ユーザーへ通知され、操作が制限されます。" 
-                  : "システムを【通常稼働】に戻します。"}
+                {confirmActionType === "version" 
+                  ? "システム全体のアプリケーションバージョン表記を更新します。"
+                  : maintenance.active 
+                    ? "メンテンナンスを【有効】に設定します。即座に全ユーザーへ通知され、操作が制限されます。" 
+                    : "システムを【通常稼働】に戻します。"}
               </p>
             </div>
             <div className="p-10 bg-slate-50 border-t flex gap-6">
