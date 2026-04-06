@@ -5,7 +5,7 @@ import { fetchYumesteSongs } from "@/lib/api_yumeste";
 import { db } from "@/lib/db";
 import { supabase } from "@/lib/supabase";
 import { PlayResult, YumesteDifficulty, YumesteSong } from "@/types";
-import { calculateSingleRating, calculateAverageOfTopN } from "@/lib/rating";
+import { calculateSingleRating, calculateAverageOfTopN, calculateSeishoDetailed } from "@/lib/rating";
 
 interface ListEntry {
   song: YumesteSong;
@@ -64,56 +64,129 @@ const SongListItem = React.memo(({
   const diffRingColor = entry.diff === "STELLA" ? "ring-purple-400" : "ring-slate-700";
   const diffTextColor = entry.diff === "STELLA" ? "text-purple-600" : "text-slate-900";
 
+    const seisho = (entry.diff === "OLIVIER" && saved) ? calculateSeishoDetailed(parseLevel(entry.level), parseFloat(saved.accuracy), (saved.perfect || 0) + (saved.great || 0) + (saved.good || 0) + (saved.bad || 0) + (saved.miss || 0), saved.clearType) : null;
+
+    return (
+      <button
+        onClick={onClick}
+        onDoubleClick={onDoubleClick}
+        style={style}
+        className={`w-full text-left p-3 rounded-[1.25rem] transition-all duration-300 flex items-center gap-3 animate-fade-in-up
+          ${isSelected ? `bg-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] ring-2 ${diffRingColor} scale-100 relative z-10` : "bg-white/50 border border-slate-200/50 hover:bg-white/80 hover:shadow-md hover:scale-[1.01]"}
+          ${isQuickAPMode ? "hover:ring-2 hover:ring-rose-400" : ""}
+        `}
+      >
+        <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 border border-slate-200/50 bg-white relative">
+          <img 
+            src={`https://cdn.wikiwiki.jp/to/w/wds/収録楽曲一覧/::attach/${encodeURIComponent(entry.song.曲名)}.png`}
+            alt="jacket"
+            className="w-full h-full object-cover"
+            onError={(e) => (e.target as HTMLImageElement).style.display = 'none'}
+          />
+        </div>
+  
+        <div className={`w-10 h-10 rounded-full flex flex-col items-center justify-center text-white shrink-0 shadow-sm ${diffColor}`}>
+          <div className="text-[8px] font-black leading-none opacity-90">{entry.diff === "STELLA" ? "ST" : "OL"}</div>
+          <div className="text-lg font-black leading-none mt-0.5">{entry.level}</div>
+        </div>
+  
+        <div className="flex-1 min-w-0 pr-2">
+          <div className={`text-[15px] font-black truncate leading-tight ${isSelected ? "text-slate-900" : "text-slate-700"}`}>{entry.song.曲名}</div>
+          {!saved ? (
+            <div className="text-xs font-bold text-slate-400 mt-1">未プレイ</div>
+          ) : (
+            <div className="flex items-center gap-2 mt-1">
+              {saved.clearType !== "CLEAR" && (
+                <span className={`text-[10px] font-black px-1.5 py-0.5 rounded border leading-none uppercase
+                   ${saved.clearType === "AP" ? "border-cyan-400 text-cyan-500 bg-cyan-50" : saved.clearType === "FC" ? "border-pink-400 text-pink-500 bg-pink-50" : "border-slate-300 text-slate-400"}`}>
+                  {saved.clearType}
+                </span>
+              )}
+              <span className={`text-xs font-black font-mono ${isSelected ? diffTextColor : "text-slate-500"}`}>{parseFloat(saved.accuracy).toFixed(4)}%</span>
+              
+              {entry.diff === "OLIVIER" && seisho ? (
+                <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md bg-slate-900 text-white ml-auto tabular-nums flex items-center gap-1">
+                  <span className="text-[8px] opacity-70">星章</span> {seisho.total}
+                </span>
+              ) : rating !== null && (
+                <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500 ml-auto tabular-nums">
+                  {rating.toFixed(2)}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      </button>
+    );
+  });
+
+SongListItem.displayName = "SongListItem";
+
+const SeishoBreakdown = ({ level, accuracy, inputs, clearType }: { level: string, accuracy: string, inputs: any, clearType: any }) => {
+  const levelNum = parseLevel(level);
+  const accNum = parseFloat(accuracy);
+  const perfBelow = inputs.perfect + inputs.great + inputs.good + inputs.bad + inputs.miss;
+  const d = calculateSeishoDetailed(levelNum, accNum, perfBelow, clearType);
+
+  const ProgressItem = ({ label, current, max, points, next, hint }: { label: string, current: string | number, max: number, points: number, next: any, hint: string }) => (
+    <div className="bg-white/60 rounded-2xl p-4 border border-white/50 shadow-sm overflow-hidden relative group">
+      <div className="flex justify-between items-end mb-2 relative z-10">
+        <div>
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</div>
+          <div className="text-xl font-black text-slate-800 tabular-nums">
+            {current} <span className="text-[10px] text-slate-400 font-bold">/ {max}pt</span>
+          </div>
+        </div>
+        <div className="text-right">
+          <div className="text-2xl font-black text-slate-900 group-hover:scale-110 transition-transform">+{points}</div>
+        </div>
+      </div>
+      <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden relative mb-1">
+        <div className="h-full bg-slate-900 transition-all duration-1000" style={{ width: `${(points / max) * 100}%` }} />
+      </div>
+      {next && (
+        <div className="text-[9px] font-black text-slate-500 flex justify-between">
+          <span>NEXT LEVEL</span>
+          <span className="text-pink-500">{hint}</span>
+        </div>
+      )}
+    </div>
+  );
+
   return (
-    <button
-      onClick={onClick}
-      onDoubleClick={onDoubleClick}
-      style={style}
-      className={`w-full text-left p-3 rounded-[1.25rem] transition-all duration-300 flex items-center gap-3 animate-fade-in-up
-        ${isSelected ? `bg-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] ring-2 ${diffRingColor} scale-100 relative z-10` : "bg-white/50 border border-slate-200/50 hover:bg-white/80 hover:shadow-md hover:scale-[1.01]"}
-        ${isQuickAPMode ? "hover:ring-2 hover:ring-rose-400" : ""}
-      `}
-    >
-      <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 border border-slate-200/50 bg-white relative">
-        <img 
-          src={`https://cdn.wikiwiki.jp/to/w/wds/収録楽曲一覧/::attach/${encodeURIComponent(entry.song.曲名)}.png`}
-          alt="jacket"
-          className="w-full h-full object-cover"
-          onError={(e) => (e.target as HTMLImageElement).style.display = 'none'}
+    <div className="mt-8 space-y-4 animate-fade-in-up">
+      <div className="flex items-center gap-3 px-4 mb-2">
+        <div className="h-px flex-1 bg-slate-200" />
+        <div className="text-[10px] font-black text-slate-400 tracking-widest uppercase">Seisho Breakdown</div>
+        <div className="h-px flex-1 bg-slate-200" />
+      </div>
+      
+      <div className="grid grid-cols-1 gap-3">
+        <ProgressItem 
+          label="A: Accuracy (達成率)" current={`${accNum.toFixed(4)}%`} max={50 + levelNum * 10} points={d.accuracyPoints}
+          next={d.nextAccuracyThreshold} hint={d.nextAccuracyThreshold ? `Next: ${d.nextAccuracyThreshold.toFixed(2)}% (+${(d.nextAccuracyThreshold - accNum).toFixed(4)}%)` : "MAXREACHED"}
+        />
+        <ProgressItem 
+          label="B: Judgment (判定精度)" current={`${perfBelow} counts`} max={5} points={d.judgmentPoints}
+          next={d.nextJudgmentThreshold} hint={d.nextJudgmentThreshold !== null ? `Next: ${d.nextJudgmentThreshold} or below (-${perfBelow - d.nextJudgmentThreshold})` : "MAXREACHED"}
+        />
+        <ProgressItem 
+          label="C: Lamp (クリアランプ)" current={clearType} max={5} points={d.lampPoints}
+          next={d.nextLampGoal} hint={d.nextLampGoal ? `Goal: ${d.nextLampGoal}` : "MAXREACHED"}
         />
       </div>
 
-      <div className={`w-10 h-10 rounded-full flex flex-col items-center justify-center text-white shrink-0 shadow-sm ${diffColor}`}>
-        <div className="text-[8px] font-black leading-none opacity-90">{entry.diff === "STELLA" ? "ST" : "OL"}</div>
-        <div className="text-lg font-black leading-none mt-0.5">{entry.level}</div>
+      <div className="bg-slate-900 rounded-3xl p-6 text-center shadow-xl shadow-slate-900/20 relative overflow-hidden group">
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-500" />
+        <div className="text-xs font-black text-slate-400 tracking-[0.3em] uppercase mb-1">Total Seisho Points</div>
+        <div className="text-6xl font-black text-white tabular-nums tracking-tighter drop-shadow-lg group-hover:scale-105 transition-transform duration-500">
+          {d.total}
+        </div>
+        <div className="mt-2 text-[10px] font-bold text-slate-500 italic">Prestige Evaluation System for OLIVIER</div>
       </div>
-
-      <div className="flex-1 min-w-0 pr-2">
-        <div className={`text-[15px] font-black truncate leading-tight ${isSelected ? "text-slate-900" : "text-slate-700"}`}>{entry.song.曲名}</div>
-        {!saved ? (
-          <div className="text-xs font-bold text-slate-400 mt-1">未プレイ</div>
-        ) : (
-          <div className="flex items-center gap-2 mt-1">
-            {saved.clearType !== "CLEAR" && (
-              <span className={`text-[10px] font-black px-1.5 py-0.5 rounded border leading-none uppercase
-                 ${saved.clearType === "AP" ? "border-cyan-400 text-cyan-500 bg-cyan-50" : saved.clearType === "FC" ? "border-pink-400 text-pink-500 bg-pink-50" : "border-slate-300 text-slate-400"}`}>
-                {saved.clearType}
-              </span>
-            )}
-            <span className={`text-xs font-black font-mono ${isSelected ? diffTextColor : "text-slate-500"}`}>{parseFloat(saved.accuracy).toFixed(4)}%</span>
-            {rating !== null && (
-              <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500 ml-auto tabular-nums">
-                {rating.toFixed(2)}
-              </span>
-            )}
-          </div>
-        )}
-      </div>
-    </button>
+    </div>
   );
-});
-
-SongListItem.displayName = "SongListItem";
+};
 
 export default function YumesteResultRecorder() {
   const [songs, setSongs] = useState<YumesteSong[]>([]);
@@ -220,9 +293,15 @@ export default function YumesteResultRecorder() {
           const res = results[`YM_${song.No}-${diff}`];
           if (res) {
             const levelNum = parseLevel(levelStr);
-            // 本家と同等のレート計算にするため、レベル数値と達成率を使用
-            const r = calculateSingleRating(String(levelNum), parseFloat(res.accuracy));
-            allRatings.push(r);
+            if (diff === "OLIVIER") {
+              // OLIVIER は星章ポイントとして計算
+              const perfBelow = (res.perfect || 0) + (res.great || 0) + (res.good || 0) + (res.bad || 0) + (res.miss || 0);
+              const seisho = calculateSeishoDetailed(levelNum, parseFloat(res.accuracy), perfBelow, res.clearType);
+              allRatings.push(seisho.total);
+            } else {
+              const r = calculateSingleRating(String(levelNum), parseFloat(res.accuracy));
+              allRatings.push(r);
+            }
           }
         }
       });
@@ -561,6 +640,17 @@ export default function YumesteResultRecorder() {
             const isSelected = selectedEntry?.song.No === entry.song.No && selectedEntry?.diff === entry.diff;
 
             const levelNum = parseLevel(entry.level);
+            const accuracyVal = saved ? parseFloat(saved.accuracy) : 0;
+            const perfBelow = saved ? (saved.perfect || 0) + (saved.great || 0) + (saved.good || 0) + (saved.bad || 0) + (saved.miss || 0) : 0;
+
+            let ratingVal = null;
+            if (saved) {
+              if (entry.diff === "OLIVIER") {
+                ratingVal = calculateSeishoDetailed(levelNum, accuracyVal, perfBelow, saved.clearType).total;
+              } else {
+                ratingVal = calculateSingleRating(String(levelNum), accuracyVal);
+              }
+            }
 
             return (
               <SongListItem 
@@ -568,7 +658,7 @@ export default function YumesteResultRecorder() {
                 onClick={() => !isQuickAPMode && setSelectedEntry(entry)}
                 onDoubleClick={() => isQuickAPMode && handleQuickAP(entry)}
                 calculateAccuracy={calculateAccuracy} getNotes={getNotes}
-                rating={saved ? calculateSingleRating(String(levelNum), parseFloat(saved.accuracy)) : null}
+                rating={ratingVal}
                 style={{ animationDelay: `${idx * 0.03}s` }}
               />
             );
@@ -587,7 +677,7 @@ export default function YumesteResultRecorder() {
             <div className={`absolute -top-32 -right-32 w-64 h-64 rounded-full blur-3xl opacity-20 pointer-events-none transition-colors duration-1000
               ${selectedEntry.diff === "STELLA" ? "bg-purple-500" : "bg-slate-900"}`} />
 
-            <div className="px-10 pt-8 pb-4 flex items-end gap-6 relative z-10 border-b border-white/50">
+            <div className="px-10 pt-8 pb-4 flex items-end gap-6 relative z-10 border-b border-white/50 bg-white/40">
               <div className="w-24 h-24 bg-slate-100 rounded-[1.5rem] shadow-inner border-2 border-slate-200/50 flex flex-col items-center justify-center shrink-0 overflow-hidden relative group">
                 <img 
                   src={`https://cdn.wikiwiki.jp/to/w/wds/収録楽曲一覧/::attach/${encodeURIComponent(selectedEntry.song.曲名)}.png`}
@@ -605,14 +695,25 @@ export default function YumesteResultRecorder() {
                 <h2 className="text-3xl font-black text-slate-800 tracking-tighter leading-tight">{selectedEntry.song.曲名}</h2>
               </div>
               <div className="text-right pb-1">
-                <div className="text-xs font-black text-slate-400 tracking-wider mb-1 uppercase">Best Accuracy</div>
-                <div className="text-3xl font-black font-mono text-purple-500 border-b-2 border-purple-200 pb-1">
-                  {results[`YM_${selectedEntry.song.No}-${selectedEntry.diff}`]?.accuracy || "---.----"}<span className="text-lg opacity-70 ml-1">%</span>
-                </div>
+                <div className="text-xs font-black text-slate-400 tracking-wider mb-1 uppercase">{selectedEntry.diff === "OLIVIER" ? "Current Seisho" : "Best Accuracy"}</div>
+                {selectedEntry.diff === "OLIVIER" ? (
+                  <div className="text-5xl font-black text-slate-900 font-mono italic">
+                    {(() => {
+                      const saved = results[`YM_${selectedEntry.song.No}-${selectedEntry.diff}`];
+                      if (!saved) return "---";
+                      const perfBelow = (saved.perfect || 0) + (saved.great || 0) + (saved.good || 0) + (saved.bad || 0) + (saved.miss || 0);
+                      return calculateSeishoDetailed(parseLevel(selectedEntry.level), parseFloat(saved.accuracy), perfBelow, saved.clearType).total;
+                    })()}
+                  </div>
+                ) : (
+                  <div className="text-3xl font-black font-mono text-purple-500 border-b-2 border-purple-200 pb-1">
+                    {results[`YM_${selectedEntry.song.No}-${selectedEntry.diff}`]?.accuracy || "---.----"}<span className="text-lg opacity-70 ml-1">%</span>
+                  </div>
+                )}
               </div>
             </div>
 
-            <div className="flex-1 px-8 pb-8 pt-4 flex flex-col justify-center relative z-10 overflow-y-auto">
+            <div className="flex-1 px-8 pb-8 pt-4 flex flex-col relative z-10 overflow-y-auto">
               <div className="bg-slate-50/50 rounded-[2rem] p-6 border border-white/60 shadow-inner flex flex-col h-full overflow-y-auto min-h-[350px]">
                 <div className="flex justify-between items-center mb-6 px-8 shrink-0">
                   <div className="flex-1 text-center">
@@ -659,6 +760,19 @@ export default function YumesteResultRecorder() {
                     RECORD SAVE
                   </button>
                 </div>
+
+                {selectedEntry.diff === "OLIVIER" && (
+                   <SeishoBreakdown 
+                     level={selectedEntry.level} 
+                     accuracy={calculateAccuracy({ perfectPlus: calculatePerfectPlus(), ...inputs }, getNotes(selectedEntry.song, selectedEntry.diff)) || "0.0000"}
+                     inputs={inputs}
+                     clearType={(() => {
+                        if (inputs.great === 0 && inputs.good === 0 && inputs.bad === 0 && inputs.miss === 0) return "AP";
+                        if (inputs.bad === 0 && inputs.miss === 0) return "FC";
+                        return "CLEAR";
+                     })()}
+                   />
+                )}
               </div>
             </div>
           </div>
