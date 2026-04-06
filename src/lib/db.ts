@@ -83,6 +83,9 @@ export const db = {
           miss: r.miss,
           clearType: r.clear_type as ClearType,
           accuracy: r.accuracy.toString(),
+          bestAccPts: r.best_acc_pts || 0,
+          bestJudgePts: r.best_judge_pts || 0,
+          bestLampPts: r.best_lamp_pts || 0,
           updatedAt: new Date(r.updated_at).getTime()
         };
       });
@@ -106,6 +109,9 @@ export const db = {
         miss: r.miss ?? 0,
         clear_type: r.clearType,
         accuracy: Number.isFinite(accuracyNum) ? accuracyNum : 0,
+        best_acc_pts: r.bestAccPts || 0,
+        best_judge_pts: r.bestJudgePts || 0,
+        best_lamp_pts: r.bestLampPts || 0,
         updated_at: new Date(r.updatedAt).toISOString()
       }, { onConflict: 'user_id,song_no,difficulty' });
 
@@ -132,6 +138,9 @@ export const db = {
           miss: r.miss ?? 0,
           clear_type: r.clearType,
           accuracy: Number.isFinite(accuracyNum) ? accuracyNum : 0,
+          best_acc_pts: r.bestAccPts || 0,
+          best_judge_pts: r.bestJudgePts || 0,
+          best_lamp_pts: r.bestLampPts || 0,
           updated_at: new Date(r.updatedAt || Date.now()).toISOString()
         };
       });

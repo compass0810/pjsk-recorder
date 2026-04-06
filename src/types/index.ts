@@ -42,6 +42,9 @@ export interface PlayResult {
   perfect: number;
   clearType: ClearType;
   accuracy: string; // 達成率
+  bestAccPts?: number; // 達成率の自己ベストポイント (ユメステ)
+  bestJudgePts?: number; // 判定精度の自己ベストポイント (ユメステ)
+  bestLampPts?: number; // ランプの自己ベストポイント (ユメステ)
   updatedAt: number;
 }
 

@@ -45,6 +45,9 @@ CREATE TABLE public.play_results (
   miss integer NOT NULL DEFAULT 0,
   clear_type text NOT NULL, -- 'AP', 'FC', 'CLEAR', 'FAILED'
   accuracy numeric(10,4), -- 達成率 (例: 100.0000)
+  best_acc_pts integer DEFAULT 0, -- 達成率のみの自己ベストポイント
+  best_judge_pts integer DEFAULT 0, -- 判定精度のみの自己ベストポイント
+  best_lamp_pts integer DEFAULT 0, -- クリアランプのみの自己ベストポイント
   updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now())
 );
@@ -55,7 +58,10 @@ CREATE UNIQUE INDEX idx_play_results_user_song_diff ON public.play_results(user_
 
 -- !! 既存環境向け: このカラムが存在しない場合は以下を Supabase SQL Editor で実行してください !!
 ALTER TABLE public.play_results
-  ADD COLUMN IF NOT EXISTS perfect_plus integer NOT NULL DEFAULT 0;
+  ADD COLUMN IF NOT EXISTS perfect_plus integer NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS best_acc_pts integer DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS best_judge_pts integer DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS best_lamp_pts integer DEFAULT 0;
 
 -- RLS
 ALTER TABLE public.play_results ENABLE ROW LEVEL SECURITY;
