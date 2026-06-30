@@ -54,11 +54,11 @@ export default function Sidebar() {
     return null;
   }
 
-  if (!mounted) {
-    return (
-      <aside className={`${isOpen ? 'w-70' : 'w-20'} min-h-[100dvh] bg-white/40 backdrop-blur-md border-r border-white/50 relative z-10 transition-all duration-300 pointer-events-none`}></aside>
-    );
-  }
+  // if (!mounted) {
+  //  return (
+  //   <aside className={`${isOpen ? 'w-70' : 'w-20'} min-h-[100dvh] bg-white/40 backdrop-blur-md border-r border-white/50 relative z-10 transition-all duration-300 pointer-events-none`}></aside>
+  //  );
+  // }
 
   // ▼ ゲームごとの設定
   const isYumeste = activeGame === "yumeste";

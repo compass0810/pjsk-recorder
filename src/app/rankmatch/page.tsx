@@ -18,6 +18,13 @@ const RANKS = [
   { id: "beginner", name: "Beginner", base: -144, color: "from-lime-400 to-green-400", bg: "bg-lime-50", text: "text-lime-600", symbol: "✤" },
 ];
 
+const SEASONS = [
+  "2026 SPRING",
+  "2026 SUMMER",
+  "2026 AUTUMN",
+  "2026 WINTER"
+] as const;
+
 function getRankInfo(totalPoints: number) {
   if (totalPoints >= 0) {
     return { ...RANKS[0], class: null, pointInClass: totalPoints };
@@ -41,6 +48,7 @@ function getRankInfo(totalPoints: number) {
 export default function RankMatchRecorder() {
   const [songs, setSongs] = useState<Song[]>([]);
   const [records, setRecords] = useState<RankMatchRecord[]>([]);
+  const [selectedSeason, setSelectedSeason] = useState<string>("2026 SPRING");
   const [basePoints, setBasePoints] = useState(0);
   const [baseStats, setBaseStats] = useState({ win: 0, lose: 0, draw: 0, aps: 0 });
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -73,7 +81,7 @@ export default function RankMatchRecorder() {
 
   useEffect(() => {
     fetchSongs().then(setSongs);
-    
+
     const init = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       setIsLoggedIn(!!user);
@@ -85,11 +93,11 @@ export default function RankMatchRecorder() {
         setRecords(cloudRecords);
         if (profile) {
           setBasePoints(parseFloat(profile.base_points));
-          setBaseStats({ 
-            win: profile.base_win, 
-            lose: profile.base_lose, 
-            draw: profile.base_draw, 
-            aps: profile.base_aps 
+          setBaseStats({
+            win: profile.base_win,
+            lose: profile.base_lose,
+            draw: profile.base_draw,
+            aps: profile.base_aps
           });
         }
       }
@@ -132,16 +140,23 @@ export default function RankMatchRecorder() {
     setRecordTime(localISOTime);
   }, []);
 
+  const filteredRecords = useMemo(() => {
+    return records.filter(r => {
+      const recordSeason = r.season || "2026 SPRING";
+      return recordSeason === selectedSeason;
+    });
+  }, [records, selectedSeason]);
+
   const stats = useMemo(() => {
     let win = 0, lose = 0, draw = 0, aps = 0;
     let recordsPointsOffset = 0;
-    records.forEach(r => {
+    filteredRecords.forEach(r => {
       if (r.result === "WIN") win++;
       else if (r.result === "LOSE") lose++;
       else draw++;
 
       if (r.you.clearType === "AP") aps++;
-      
+
       const pChange = typeof r.pointChange === 'number' && !isNaN(r.pointChange) ? r.pointChange : 0;
       if (r.isCountPoints !== false) {
         recordsPointsOffset += pChange;
@@ -149,7 +164,7 @@ export default function RankMatchRecorder() {
     });
     const totalPoints = basePoints + recordsPointsOffset;
     return {
-      matches: records.length + baseStats.win + baseStats.lose + baseStats.draw,
+      matches: filteredRecords.length + baseStats.win + baseStats.lose + baseStats.draw,
       win: win + baseStats.win,
       lose: lose + baseStats.lose,
       draw: draw + baseStats.draw,
@@ -157,7 +172,7 @@ export default function RankMatchRecorder() {
       recordsPointsOffset,
       totalPoints
     };
-  }, [records, basePoints, baseStats]);
+  }, [filteredRecords, basePoints, baseStats]);
 
   const winRateTotal = stats.win + stats.lose;
   const winRate = winRateTotal > 0 ? (stats.win / winRateTotal * 100).toFixed(1) : "0.0";
@@ -186,7 +201,7 @@ export default function RankMatchRecorder() {
     else if (yPenalty > rPenalty) { result = "LOSE"; pointChange -= 1.0; }
     else {
       result = "DRAW";
-      if (yPenalty === 0 && rPenalty === 0) pointChange += 1.0; 
+      if (yPenalty === 0 && rPenalty === 0) pointChange += 1.0;
     }
 
     let pClearType: "AP" | "FC" | "CLEAR" | "FAILED" = "CLEAR";
@@ -239,6 +254,7 @@ export default function RankMatchRecorder() {
     const recordData: RankMatchRecord = {
       id: editingId || Date.now().toString(),
       timestamp: new Date(recordTime).getTime(),
+      season: selectedSeason,
       songName: selectedSongName,
       difficulty: selectedDiff,
       level: currentLevel as string,
@@ -253,7 +269,7 @@ export default function RankMatchRecorder() {
     try {
       if (editingId) {
         await db.rankMatch.update(editingId, recordData);
-        setRecords(records.map(r => r.id === editingId ? recordData : r));
+        setRecords(filteredRecords.map(r => r.id === editingId ? recordData : r));
         setToastMessage("戦績を更新しました！");
       } else {
         await db.rankMatch.insert(recordData);
@@ -268,7 +284,7 @@ export default function RankMatchRecorder() {
       setSelectedSongName("");
       setIsCountPoints(true);
       setEditingId(null);
-      
+
       const now = new Date();
       const offset = now.getTimezoneOffset() * 60000;
       setRecordTime(new Date(now.getTime() - offset).toISOString().slice(0, 16));
@@ -281,7 +297,7 @@ export default function RankMatchRecorder() {
         return [recordData, ...prev];
       });
       setToastMessage("保存完了（一時的にローカルへ）");
-      
+
       // フォームリセット
       setYou({ gr: 0, go: 0, b: 0, m: 0, isZeroLife: false });
       setRival({ gr: 0, go: 0, b: 0, m: 0 });
@@ -296,26 +312,26 @@ export default function RankMatchRecorder() {
     setSelectedSongName(r.songName);
     setSelectedDiff(r.difficulty);
     setRivalName(r.rivalName);
-    setYou({ 
-      gr: r.you.great, 
-      go: r.you.good, 
-      b: r.you.bad, 
-      m: r.you.miss, 
-      isZeroLife: r.you.clearType === "FAILED" 
+    setYou({
+      gr: r.you.great,
+      go: r.you.good,
+      b: r.you.bad,
+      m: r.you.miss,
+      isZeroLife: r.you.clearType === "FAILED"
     });
-    setRival({ 
-      gr: r.rival.great, 
-      go: r.rival.good, 
-      b: r.rival.bad, 
-      m: r.rival.miss 
+    setRival({
+      gr: r.rival.great,
+      go: r.rival.good,
+      b: r.rival.bad,
+      m: r.rival.miss
     });
     setIsCountPoints(r.isCountPoints !== false);
-    
+
     // 時刻のセット
     const d = new Date(r.timestamp);
     const offset = d.getTimezoneOffset() * 60000;
     setRecordTime(new Date(d.getTime() - offset).toISOString().slice(0, 16));
-    
+
     // スクロールを上へ（モバイル対応）
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -352,7 +368,7 @@ export default function RankMatchRecorder() {
     }
 
     const newBase = targetTotal - stats.recordsPointsOffset;
-    
+
     await Promise.all([
       db.profile.updatePoints(newBase),
       db.profile.updateStats({ win: overrideWin, lose: overrideLose, draw: overrideDraw, aps: overrideAps })
@@ -367,7 +383,7 @@ export default function RankMatchRecorder() {
   };
 
   const handleExportCSV = () => {
-    const header = ["日時","楽曲名","難易度","レベル","対戦相手","自分PERFECT","自分GREAT","自分GOOD","自分BAD","自分MISS","自分ClearType","相手PERFECT","相手GREAT","相手GOOD","相手BAD","相手MISS","相手ClearType","結果","ポイント変動"];
+    const header = ["日時", "楽曲名", "難易度", "レベル", "対戦相手", "自分PERFECT", "自分GREAT", "自分GOOD", "自分BAD", "自分MISS", "自分ClearType", "相手PERFECT", "相手GREAT", "相手GOOD", "相手BAD", "相手MISS", "相手ClearType", "結果", "ポイント変動"];
     const rows = records.map(r => [
       new Date(r.timestamp).toLocaleString('ja-JP'),
       r.songName,
@@ -392,9 +408,9 @@ export default function RankMatchRecorder() {
     const csv = [header, ...rows].map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); 
+    const a = document.createElement("a");
     a.href = url;
-    a.download = `pjsk_rankmatch_${new Date().toISOString().slice(0,10)}.csv`;
+    a.download = `pjsk_rankmatch_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -421,7 +437,7 @@ export default function RankMatchRecorder() {
         console.error("Sync error for", r.id, msg);
       }
     }
-    
+
     // 最新状態を再取得
     const updated = await db.rankMatch.getAll();
     setRecords(updated);
@@ -446,6 +462,24 @@ export default function RankMatchRecorder() {
   return (
     <div className="flex flex-col h-full p-6 lg:p-8 gap-6 absolute inset-0 overflow-y-auto w-full">
 
+      <div className="flex items-center gap-3 self-start bg-white/80 backdrop-blur-md shadow-sm border border-slate-200/60 px-4 py-2.5 rounded-2xl">
+        <span className="text-xs font-black tracking-widest text-slate-400 uppercase">
+          SEASON
+        </span>
+
+        <select
+          value={selectedSeason}
+          onChange={e => setSelectedSeason(e.target.value)}
+          className="bg-transparent font-black text-slate-700 outline-none cursor-pointer text-sm pr-2"
+        >
+          {SEASONS.map(s => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+      </div>
+
       {/* Toast */}
       <div className={`fixed top-6 right-6 z-50 transition-all duration-500 transform ${toastMessage ? "translate-x-0 opacity-100" : "translate-x-8 opacity-0 pointer-events-none"}`}>
         <div className="bg-white/90 backdrop-blur border-l-4 border-rose-400 p-4 rounded-xl shadow-2xl flex items-center gap-4">
@@ -462,7 +496,7 @@ export default function RankMatchRecorder() {
               <h3 className="text-xl font-black text-slate-800">Rank Override</h3>
               <p className="text-xs font-bold text-slate-500 mt-1">現在のランク情報を手動で設定します</p>
             </div>
-            
+
             <div className="p-6 space-y-4">
               <div>
                 <label className="text-xs font-black tracking-widest text-slate-400 uppercase mb-1 block">Rank</label>
@@ -470,7 +504,7 @@ export default function RankMatchRecorder() {
                   {RANKS.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                 </select>
               </div>
-              
+
               {overrideRank !== "master" && (
                 <div>
                   <label className="text-xs font-black tracking-widest text-slate-400 uppercase mb-1 block">Class</label>
@@ -482,7 +516,7 @@ export default function RankMatchRecorder() {
                   </select>
                 </div>
               )}
-              
+
               <div>
                 <label className="text-xs font-black tracking-widest text-slate-400 uppercase mb-1 block">
                   {overrideRank === "master" ? "Total Points" : "Points in Class (0.0 - 5.9)"}
@@ -512,7 +546,7 @@ export default function RankMatchRecorder() {
                 </div>
               </div>
             </div>
-            
+
             <div className="p-4 bg-slate-50 border-t border-slate-100 flex gap-3">
               <button onClick={() => setIsOverrideModalOpen(false)} className="flex-1 py-3 rounded-xl font-black text-slate-500 bg-white border border-slate-200 hover:bg-slate-100 transition-colors">Cancel</button>
               <button onClick={handleOverrideSave} className="flex-1 py-3 rounded-xl font-black text-white bg-slate-800 hover:bg-slate-700 shadow-md shadow-slate-300 transition-all">Save</button>
@@ -523,7 +557,7 @@ export default function RankMatchRecorder() {
 
       {/* ヘッダー戦績 */}
       <div className="bg-white/70 backdrop-blur-xl rounded-[1.5rem] p-6 shadow-md border border-white flex flex-col xl:flex-row items-center justify-between gap-6 shrink-0 animate-fade-in-up">
-        
+
         {/* レート・バッジ UI */}
         <div className="flex items-center gap-4 bg-white/60 p-4 rounded-2xl shadow-sm border border-slate-100 flex-1 w-full max-w-sm shrink-0">
           <div className={`w-16 h-16 shrink-0 rounded-2xl bg-gradient-to-br flex items-center justify-center ${rankInfo.color} shadow-lg text-white`}>
@@ -549,7 +583,7 @@ export default function RankMatchRecorder() {
                 {rankInfo.pointInClass.toFixed(2)} pt
               </div>
             )}
-            
+
             {rankInfo.class && (
               <div className="w-full bg-slate-200 h-1.5 rounded-full mt-2 overflow-hidden shrink-0">
                 <div className={`h-full bg-gradient-to-r ${rankInfo.color} transition-all duration-500`} style={{ width: `${(rankInfo.pointInClass / 6) * 100}%` }}></div>
@@ -592,7 +626,7 @@ export default function RankMatchRecorder() {
             <div className="flex-1 flex items-center bg-slate-50/80 rounded-lg shadow-sm border border-slate-100 pr-2 w-full overflow-hidden">
               {selectedSongName && (
                 <div className="w-11 h-11 shrink-0 border-r border-slate-100 bg-white shadow-sm overflow-hidden">
-                  <img 
+                  <img
                     src={`https://pjsekai.com/?plugin=ref&page=${encodeURIComponent(selectedSongName)}&src=${encodeURIComponent(selectedSongName)}.jpg`}
                     alt="jacket"
                     className="w-full h-full object-cover"
@@ -649,7 +683,7 @@ export default function RankMatchRecorder() {
                 <span className="animate-pulse w-2 h-2 bg-amber-500 rounded-full"></span>
                 <span className="text-xs font-black text-amber-700 uppercase tracking-widest">Editing Mode</span>
               </div>
-              <button 
+              <button
                 onClick={handleCancelEdit}
                 className="text-[10px] font-black bg-white border border-amber-200 text-amber-600 px-3 py-1 rounded-lg hover:bg-amber-100 transition-colors"
                 title="編集をキャンセルして新規入力に戻ります"
@@ -662,12 +696,12 @@ export default function RankMatchRecorder() {
           <div className="flex flex-col flex-1 justify-center">
 
             <div className="mb-4 text-center">
-               <input
-                 type="datetime-local"
-                 value={recordTime}
-                 onChange={e => setRecordTime(e.target.value)}
-                 className="bg-slate-100 border border-slate-200 rounded-lg px-4 py-1.5 text-xs font-black text-slate-500 outline-none focus:ring-2 focus:ring-cyan-300 transition-all text-center"
-               />
+              <input
+                type="datetime-local"
+                value={recordTime}
+                onChange={e => setRecordTime(e.target.value)}
+                className="bg-slate-100 border border-slate-200 rounded-lg px-4 py-1.5 text-xs font-black text-slate-500 outline-none focus:ring-2 focus:ring-cyan-300 transition-all text-center"
+              />
             </div>
 
             <div className="mb-6 text-center relative px-2">
@@ -799,7 +833,7 @@ export default function RankMatchRecorder() {
                     <div className="pl-2 flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 border border-slate-100 bg-white shadow-sm">
-                          <img 
+                          <img
                             src={`https://pjsekai.com/?plugin=ref&page=${encodeURIComponent(r.songName)}&src=${encodeURIComponent(r.songName)}.jpg`}
                             alt="jacket"
                             className="w-full h-full object-cover"
@@ -808,7 +842,7 @@ export default function RankMatchRecorder() {
                         </div>
                         <span className={`text-[10px] font-black px-2 py-0.5 rounded text-white ${isWin ? "bg-rose-500" : isLose ? "bg-blue-500" : "bg-emerald-500"}`}>{r.result}</span>
                         <div className="flex items-center gap-1 min-w-0 flex-1">
-                          <span 
+                          <span
                             className="px-1.5 h-4.5 rounded flex items-center justify-center text-[10px] font-black text-white shrink-0 shadow-sm"
                             style={{ backgroundColor: r.difficulty === "EXP" ? "var(--color-diff-expert)" : r.difficulty === "MAS" ? "var(--color-diff-master)" : "var(--color-diff-append)" }}
                           >

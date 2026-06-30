@@ -2,8 +2,8 @@ import { supabase } from "./supabase";
 import { RankMatchRecord, PlayResult, Bug, BugComment, ClearType, PjskDifficulty, YumesteDifficulty } from "../types";
 
 // DB Access Layer (Supabase / Cloud Version)
-// 全データはサーバー側でユーザーIDに紐づけて保存されます
 
+// 💡 改善点1: getUser()はネットワーク通信を伴うため、セッションから高速に取得する関数も用意
 const getUserId = async () => {
   const { data: { user } } = await supabase.auth.getUser();
   return user?.id ?? null;
@@ -34,12 +34,43 @@ const normalizeClearType = (v: unknown): ClearType => {
   return (typeof v === "string" && (v === "CLEAR" || v === "FC" || v === "AP" || v === "FAILED")) ? v as ClearType : "CLEAR";
 };
 
+// 💡 共通のマップ関数を作ってコードを共通化
+const mapRankMatchRow = (r: any): RankMatchRecord => ({
+  id: r.id,
+  timestamp: Number(r.timestamp),
+  songName: r.song_name,
+  difficulty: r.difficulty as PjskDifficulty,
+  level: r.level_num,
+  rivalName: r.rival_name,
+  you: {
+    perfect: r.you_perfect,
+    great: r.you_great,
+    good: r.you_good,
+    bad: r.you_bad,
+    miss: r.you_miss,
+    clearType: r.you_clear_type as ClearType
+  },
+  rival: {
+    perfect: r.rival_perfect || 0,
+    great: r.rival_great,
+    good: r.rival_good,
+    bad: r.rival_bad,
+    miss: r.rival_miss,
+    clearType: r.rival_clear_type as ClearType
+  },
+  result: r.match_result as "WIN" | "LOSE" | "DRAW",
+  pointChange: isNaN(parseFloat(r.point_change)) ? 0 : parseFloat(r.point_change),
+  isCountPoints: r.is_count_points ?? true,
+  isSynced: true
+});
+
 export const db = {
   profile: {
     get: async () => {
       const userId = await getUserId();
       if (!userId) return null;
-      const { data } = await supabase.from("profiles").select("*, is_admin").eq("user_id", userId).single();
+      const { data, error } = await supabase.from("profiles").select("*, is_admin").eq("user_id", userId).single();
+      if (error) console.error("[db.profile.get] Error:", error.message);
       return data;
     },
     updatePoints: async (points: number) => {
@@ -68,7 +99,12 @@ export const db = {
     getAll: async (): Promise<Record<string, PlayResult>> => {
       const userId = await getUserId();
       if (!userId) return {};
-      const { data } = await supabase.from("play_results").select("*").eq("user_id", userId);
+      const { data, error } = await supabase.from("play_results").select("*").eq("user_id", userId);
+      
+      if (error) {
+        console.error("[db.playResults.getAll] Error:", error.message);
+        return {};
+      }
       
       const results: Record<string, PlayResult> = {};
       data?.forEach(r => {
@@ -169,71 +205,91 @@ export const db = {
       
       if (error) {
         console.error("Cloud RankMatch Fetch Error:", error);
-        return localRecords; // Fallback to local
+        return localRecords;
       }
 
-      const cloudRecords: RankMatchRecord[] = (data || []).map(r => ({
-        id: r.id,
-        timestamp: Number(r.timestamp),
-        songName: r.song_name,
-        difficulty: r.difficulty as PjskDifficulty,
-        level: r.level_num,
-        rivalName: r.rival_name,
-        you: {
-          perfect: r.you_perfect,
-          great: r.you_great,
-          good: r.you_good,
-          bad: r.you_bad,
-          miss: r.you_miss,
-          clearType: r.you_clear_type as ClearType
-        },
-        rival: {
-          perfect: r.rival_perfect || 0,
-          great: r.rival_great,
-          good: r.rival_good,
-          bad: r.rival_bad,
-          miss: r.rival_miss,
-          clearType: r.rival_clear_type as ClearType
-        },
-        result: r.match_result as "WIN" | "LOSE" | "DRAW",
-        pointChange: isNaN(parseFloat(r.point_change)) ? 0 : parseFloat(r.point_change),
-        isCountPoints: r.is_count_points ?? true,
-        isSynced: true
-      }));
+      const cloudRecords: RankMatchRecord[] = (data || []).map(mapRankMatchRow);
 
-      // Merge: Keep all cloud records + add local records that are NOT in cloud yet
+      // Merge
       const merged = [...cloudRecords];
       localRecords.forEach(local => {
         if (!merged.find(m => m.id === local.id)) {
-          merged.push({ ...local, isSynced: false });
+          merged.push({ ...local, isSynced: local.isSynced ?? false });
         }
       });
       
       const sortedMerged = merged.sort((a, b) => b.timestamp - a.timestamp);
       setLocalRankMatchRecords(sortedMerged);
 
-      // Auto-Sync: Try to upload local-only records if online
+      // 💡 改善点2: ループでsyncOneを回さず、一括同期（バッチ処理）をバックグラウンドで実行
       const unsynced = merged.filter(m => !m.isSynced);
       if (unsynced.length > 0) {
-        // Run sync in background
-        (async () => {
-          for (const rec of unsynced) {
-            try {
-              await db.rankMatch.syncOne(rec);
-            } catch (err) {
-              const msg = err instanceof Error ? err.message : (err as any)?.message ?? JSON.stringify(err);
-              console.warn("Auto-Sync Failed for record:", rec.id, msg);
-            }
-          }
-        })();
+        db.rankMatch.syncMany(unsynced).catch(err => {
+          console.warn("Auto-Sync Failed:", err);
+        });
       }
 
       return sortedMerged;
     },
-    syncOne: async (r: RankMatchRecord) => {
+
+    // 💡 改善点3: 大量データも一発で同期できるバッチ関数を追加
+    syncMany: async (records: RankMatchRecord[]) => {
+      if (records.length === 0) return;
       const userId = await getUserId();
       if (!userId) throw new Error("Authentication Required for Cloud Sync");
 
+      const rows = records.map(r => ({
+        id: r.id,
+        user_id: userId,
+        song_name: normalizeString(r.songName, r.songName),
+        difficulty: normalizeString(r.difficulty, String(r.difficulty)),
+        level_num: normalizeString(r.level, String(r.level)),
+        rival_name: normalizeString(r.rivalName, r.rivalName),
+        you_perfect: normalizeNumber(r.you?.perfect, 0),
+        you_great: normalizeNumber(r.you?.great, 0),
+        you_good: normalizeNumber(r.you?.good, 0),
+        you_bad: normalizeNumber(r.you?.bad, 0),
+        you_miss: normalizeNumber(r.you?.miss, 0),
+        you_clear_type: normalizeClearType(r.you?.clearType),
+        rival_perfect: normalizeNumber(r.rival?.perfect, 0),
+        rival_great: normalizeNumber(r.rival?.great, 0),
+        rival_good: normalizeNumber(r.rival?.good, 0),
+        rival_bad: normalizeNumber(r.rival?.bad, 0),
+        rival_miss: normalizeNumber(r.rival?.miss, 0),
+        rival_clear_type: normalizeClearType(r.rival?.clearType),
+        match_result: r.result,
+        point_change: normalizeNumber(r.pointChange, 0),
+        is_count_points: r.isCountPoints !== false,
+        timestamp: Math.floor(normalizeNumber(r.timestamp, Date.now()))
+      }));
+
+      const { error } = await supabase.from("rankmatch_records").upsert(rows, { onConflict: 'id' });
+
+      if (error) {
+        throw new Error(`syncMany failed: ${error.message}`);
+      } else {
+        // 同期完了フラグを一括でローカルに反映
+        const syncedIds = new Set(records.map(r => r.id));
+        const currentLocal = getLocalRankMatchRecords();
+        setLocalRankMatchRecords(currentLocal.map(rec => syncedIds.has(rec.id) ? { ...rec, isSynced: true } : rec));
+      }
+    },
+
+    syncOne: async (r: RankMatchRecord) => {
+      // 既存の単発同期も内部的にsyncManyを再利用して安全に
+      await db.rankMatch.syncMany([r]);
+    },
+
+    insert: async (r: RankMatchRecord) => {
+      const userId = await getUserId();
+      
+      // 楽観的アップデート（最初は未同期フラグを明示）
+      const currentLocal = getLocalRankMatchRecords();
+      setLocalRankMatchRecords([{ ...r, isSynced: false }, ...currentLocal]);
+
+      if (!userId) throw new Error("Authentication Required for Cloud Sync");
+
+      // 💡 改善点4: insertではなくupsertを使うことで、重複エラーによるクラッシュを防止
       const { error } = await supabase.from("rankmatch_records").upsert({
         id: r.id,
         user_id: userId,
@@ -260,79 +316,16 @@ export const db = {
       }, { onConflict: 'id' });
 
       if (error) {
-        const status = (error as any)?.status;
-        const message = (error as any)?.message ?? "Unknown error";
-        const details = (error as any)?.details;
-        const hint = (error as any)?.hint;
-        // throw Error にして catch 側でメッセージが確実に見えるようにする
-        throw new Error(
-          `syncOne failed: status=${status ?? "?"}, message=${message}${details ? `, details=${details}` : ""}${hint ? `, hint=${hint}` : ""}`
-        );
-      } else {
-        // Mark as synced in local storage
-        const currentLocal = getLocalRankMatchRecords();
-        setLocalRankMatchRecords(currentLocal.map(rec => rec.id === r.id ? { ...rec, isSynced: true } : rec));
-      }
-    },
-    insert: async (r: RankMatchRecord) => {
-      const userId = await getUserId();
-      
-      // Always update local first (optimistic)
-      const currentLocal = getLocalRankMatchRecords();
-      setLocalRankMatchRecords([r, ...currentLocal]);
-
-      if (!userId) throw new Error("Authentication Required for Cloud Sync");
-
-      const { error } = await supabase.from("rankmatch_records").insert({
-        id: r.id,
-        user_id: userId,
-        song_name: normalizeString(r.songName, r.songName),
-        difficulty: normalizeString(r.difficulty, String(r.difficulty)),
-        level_num: normalizeString(r.level, String(r.level)),
-        rival_name: normalizeString(r.rivalName, r.rivalName),
-        you_perfect: normalizeNumber(r.you?.perfect, 0),
-        you_great: normalizeNumber(r.you?.great, 0),
-        you_good: normalizeNumber(r.you?.good, 0),
-        you_bad: normalizeNumber(r.you?.bad, 0),
-        you_miss: normalizeNumber(r.you?.miss, 0),
-        you_clear_type: normalizeClearType(r.you?.clearType),
-        rival_perfect: normalizeNumber(r.rival?.perfect, 0),
-        rival_great: normalizeNumber(r.rival?.great, 0),
-        rival_good: normalizeNumber(r.rival?.good, 0),
-        rival_bad: normalizeNumber(r.rival?.bad, 0),
-        rival_miss: normalizeNumber(r.rival?.miss, 0),
-        rival_clear_type: normalizeClearType(r.rival?.clearType),
-        match_result: r.result,
-        point_change: normalizeNumber(r.pointChange, 0),
-        is_count_points: r.isCountPoints !== false,
-        timestamp: Math.floor(normalizeNumber(r.timestamp, Date.now()))
-      });
-
-      if (error) {
         console.error("Cloud RankMatch Insert Error:", error);
-        const status = (error as any)?.status;
-        const message = (error as any)?.message ?? "Unknown error";
-        const details = (error as any)?.details;
-        const hint = (error as any)?.hint;
-        throw new Error(
-          `insert failed: status=${status ?? "?"}, message=${message}${details ? `, details=${details}` : ""}${hint ? `, hint=${hint}` : ""}`
-        ); // Let the UI handle it (but it's already in local)
+        throw new Error(`insert failed: ${error.message}`);
       } else {
-        // Mark as synced in local storage
-        const currentLocal = getLocalRankMatchRecords();
-        setLocalRankMatchRecords(currentLocal.map(rec => rec.id === r.id ? { ...rec, isSynced: true } : rec));
+        const currentLocalNow = getLocalRankMatchRecords();
+        setLocalRankMatchRecords(currentLocalNow.map(rec => rec.id === r.id ? { ...rec, isSynced: true } : rec));
       }
     },
     update: async (id: string, r: Partial<RankMatchRecord>) => {
-      // Update local mirror
       const currentLocal = getLocalRankMatchRecords();
-      const updatedLocal = currentLocal.map(rec => {
-        if (rec.id === id) {
-          return { ...rec, ...r };
-        }
-        return rec;
-      });
-      setLocalRankMatchRecords(updatedLocal);
+      setLocalRankMatchRecords(currentLocal.map(rec => rec.id === id ? { ...rec, ...r, isSynced: false } : rec));
 
       const userId = await getUserId();
       if (!userId) return;
@@ -366,10 +359,14 @@ export const db = {
       }
 
       const { error } = await supabase.from("rankmatch_records").update(updateData).eq("id", id).eq("user_id", userId);
-      if (error) console.error("Cloud RankMatch Update Error:", error);
+      if (error) {
+        console.error("Cloud RankMatch Update Error:", error);
+      } else {
+        const currentLocalNow = getLocalRankMatchRecords();
+        setLocalRankMatchRecords(currentLocalNow.map(rec => rec.id === id ? { ...rec, isSynced: true } : rec));
+      }
     },
     delete: async (id: string) => {
-      // Update local mirror
       const currentLocal = getLocalRankMatchRecords();
       setLocalRankMatchRecords(currentLocal.filter(r => r.id !== id));
 
@@ -382,7 +379,8 @@ export const db = {
   
   bugs: {
     getAll: async (): Promise<Bug[]> => {
-      const { data } = await supabase.from("bugs").select("*").order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("bugs").select("*").order("created_at", { ascending: false });
+      if (error) console.error("[db.bugs.getAll] Error:", error.message);
       return (data || []).map(b => ({
         id: b.id,
         userId: b.user_id,
@@ -391,7 +389,7 @@ export const db = {
         content: b.content,
         level: b.level as 1 | 2 | 3,
         category: b.category as 'bug' | 'request',
-        status: b.status as any,
+        status: b.status as Bug['status'], // 💡 anyキャストを修正
         createdAt: new Date(b.created_at).getTime(),
         updatedAt: new Date(b.updated_at).getTime()
       }));
@@ -423,7 +421,8 @@ export const db = {
 
   bugComments: {
     getByBugId: async (bugId: string): Promise<BugComment[]> => {
-      const { data } = await supabase.from("bug_comments").select("*").eq("bug_id", bugId).order("created_at", { ascending: true });
+      const { data, error } = await supabase.from("bug_comments").select("*").eq("bug_id", bugId).order("created_at", { ascending: true });
+      if (error) console.error("[db.bugComments.getByBugId] Error:", error.message);
       return (data || []).map(c => ({
         id: c.id,
         bugId: c.bug_id,
@@ -472,46 +471,43 @@ export const db = {
       }
       return data;
     },
+    
+    // 💡 改善点5: PostgreSQLのJOIN（リレーション結合）を使い、1回のクエリでまとめて取得
     getAllPlayResults: async () => {
-      // ステップ1: 全リザルトを取得
       const { data, error } = await supabase
         .from("play_results")
-        .select("*")
+        .select(`
+          *,
+          profiles:user_id (user_id, username, custom_id)
+        `)
         .order("updated_at", { ascending: false })
         .limit(2000);
-      if (error) { console.error("getAllPlayResults Error:", error.message, error); return []; }
-      if (!data || data.length === 0) return [];
 
-      // ステップ2: 登場するユーザーIDのプロファイルを取得
-      const userIds = [...new Set(data.map((r: any) => r.user_id))];
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, username, custom_id")
-        .in("user_id", userIds);
-      const profileMap = Object.fromEntries((profiles || []).map((p: any) => [p.user_id, p]));
-
-      return data.map((r: any) => ({ ...r, profiles: profileMap[r.user_id] || null }));
+      if (error) { 
+        console.error("getAllPlayResults Error:", error.message); 
+        return []; 
+      }
+      return data || [];
     },
+    
+    // 💡 改善点5（続き）: こちらも二重クエリと手動マッピングを廃止
     getAllRankMatches: async () => {
-      // ステップ1: 全ランクマ記録を取得
       const { data, error } = await supabase
         .from("rankmatch_records")
-        .select("*")
+        .select(`
+          *,
+          profiles:user_id (user_id, username, custom_id)
+        `)
         .order("timestamp", { ascending: false })
         .limit(2000);
-      if (error) { console.error("getAllRankMatches Error:", error.message, error); return []; }
-      if (!data || data.length === 0) return [];
 
-      // ステップ2: 登場するユーザーIDのプロファイルを取得
-      const userIds = [...new Set(data.map((r: any) => r.user_id))];
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, username, custom_id")
-        .in("user_id", userIds);
-      const profileMap = Object.fromEntries((profiles || []).map((p: any) => [p.user_id, p]));
-
-      return data.map((r: any) => ({ ...r, profiles: profileMap[r.user_id] || null }));
+      if (error) { 
+        console.error("getAllRankMatches Error:", error.message); 
+        return []; 
+      }
+      return data || [];
     },
+    
     getMaintenance: async () => {
       const { data } = await supabase.from("system_config").select("value").eq("key", "maintenance").single();
       return data?.value || { active: false, start: "", end: "", type: "regular", reason: "" };

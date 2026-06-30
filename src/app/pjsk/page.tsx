@@ -153,9 +153,17 @@ export default function ResultRecorder() {
   const listEntries = useMemo(() => {
     const entries: ListEntry[] = [];
     songs.forEach(song => {
-      if (song.X && song.X.trim() !== "" && song.X !== "-") entries.push({ song, diff: "EXP", level: song.X });
-      if (song.M && song.M.trim() !== "" && song.M !== "-") entries.push({ song, diff: "MAS", level: song.M });
-      if (song.A && song.A.trim() !== "" && song.A !== "-") entries.push({ song, diff: "APD", level: song.A });
+      if (typeof song.X === "string" && song.X.trim() !== "" && song.X !== "-") {
+        entries.push({ song, diff: "EXP", level: song.X });
+      }
+
+      if (typeof song.M === "string" && song.M.trim() !== "" && song.M !== "-") {
+        entries.push({ song, diff: "MAS", level: song.M });
+      }
+
+      if (typeof song.A === "string" && song.A.trim() !== "" && song.A !== "-") {
+        entries.push({ song, diff: "APD", level: song.A });
+      }
     });
 
     return entries.filter(e => {
@@ -205,7 +213,7 @@ export default function ResultRecorder() {
       diffs.forEach(diff => {
         const levelKey = diff === "EXP" ? "X" : diff === "MAS" ? "M" : "A";
         const levelStr = song[levelKey as keyof Song];
-        if (levelStr && levelStr !== "-" && levelStr.trim() !== "") {
+        if (typeof levelStr === "string" && levelStr !== "-" && levelStr.trim() !== "") {
           const res = results[`${song.No}-${diff}`];
           if (res) {
             const r = calculateSingleRating(levelStr, parseFloat(res.accuracy));
