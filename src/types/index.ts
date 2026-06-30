@@ -22,7 +22,9 @@ export interface YumesteSong {
 
 export type PjskDifficulty = "EXP" | "MAS" | "APD";
 export type YumesteDifficulty = "STELLA" | "OLIVIER";
+
 export type Difficulty = PjskDifficulty | YumesteDifficulty;
+
 export type ClearType = "CLEAR" | "FC" | "AP" | "FAILED";
 
 export interface Top100Player {
@@ -41,26 +43,52 @@ export interface PlayResult {
   miss: number;
   perfect: number;
   clearType: ClearType;
-  accuracy: string; // 達成率
-  bestAccPts?: number; // 達成率の自己ベストポイント (ユメステ)
-  bestJudgePts?: number; // 判定精度の自己ベストポイント (ユメステ)
-  bestLampPts?: number; // ランプの自己ベストポイント (ユメステ)
+  accuracy: string;
+
+  bestAccPts?: number;
+  bestJudgePts?: number;
+  bestLampPts?: number;
+
   updatedAt: number;
 }
 
 export interface RankMatchRecord {
-  id: string; // 一意のID (UUIDやタイムスタンプ)
+  id: string;
   timestamp: number;
+
+  // 👇 追加済み（今回の本題）
+  season?: string;
+
   songName: string;
   difficulty: Difficulty;
   level: string;
+
   rivalName: string;
-  you: { perfect: number; great: number; good: number; bad: number; miss: number; clearType: ClearType };
-  rival: { perfect: number; great: number; good: number; bad: number; miss: number; clearType: ClearType };
+
+  you: {
+    perfect: number;
+    great: number;
+    good: number;
+    bad: number;
+    miss: number;
+    clearType: ClearType;
+  };
+
+  rival: {
+    perfect: number;
+    great: number;
+    good: number;
+    bad: number;
+    miss: number;
+    clearType: ClearType;
+  };
+
   result: "WIN" | "LOSE" | "DRAW";
-  pointChange: number; // +1.0, -1.0, +1.2 など
-  isCountPoints?: boolean; // ポイント計算に含めるかどうか
-  isSynced?: boolean; // クラウドと同期済みかどうか
+
+  pointChange: number;
+
+  isCountPoints?: boolean;
+  isSynced?: boolean;
 }
 
 export interface Bug {
@@ -70,8 +98,8 @@ export interface Bug {
   title: string;
   content: string;
   level: 1 | 2 | 3;
-  category: 'bug' | 'request';
-  status: 'open' | 'investigating' | 'resolved';
+  category: "bug" | "request";
+  status: "open" | "investigating" | "resolved";
   createdAt: number;
   updatedAt: number;
 }

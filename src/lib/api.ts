@@ -65,7 +65,7 @@ export async function fetchSongs(onProgress?: (loaded: number, total: number) =>
 export async function fetchUpdateLogs(): Promise<UpdateLog[]> {
   try {
     // URLがデフォルトの未設定状態（プレースホルダー）の時はダミーを返す
-    if (!LOG_SHEET_URL || LOG_SHEET_URL.includes("__LOG_GID__") || LOG_SHEET_URL === "") {
+    if (!LOG_SHEET_URL?.length || LOG_SHEET_URL.includes("__LOG_GID__")) {
       return [
         { version: "v1.0.0", date: "2026.04.01", title: "正式リリース", content: "プロセカレコーダーの正式運用を開始しました。" },
         { version: "v0.5.0", date: "2026.03.29", title: "ランクマレコーダー等実装", content: "UI改修と勝敗計算ロジック実装。ここはダミーデータです。\nあとで api.ts にある LOG_SHEET_URL に正しい「アップデートログ」シートのCSV URLをセットしてください。" }

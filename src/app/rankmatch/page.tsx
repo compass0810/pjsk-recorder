@@ -142,7 +142,7 @@ export default function RankMatchRecorder() {
 
   const filteredRecords = useMemo(() => {
     return records.filter(r => {
-      const recordSeason = r.season || "2026 SPRING";
+      const recordSeason = (r as any).season || "2026 SPRING";
       return recordSeason === selectedSeason;
     });
   }, [records, selectedSeason]);
