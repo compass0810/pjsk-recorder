@@ -270,7 +270,10 @@ export default function RankMatchRecorder() {
     try {
       if (editingId) {
         await db.rankMatch.update(editingId, recordData);
-        setRecords(filteredRecords.map(r => r.id === editingId ? recordData : r));
+        
+        // ⭕ 修正：filteredRecords ではなく、大元の records を map するように変更
+        setRecords(records.map(r => r.id === editingId ? recordData : r));
+        
         setToastMessage("戦績を更新しました！");
       } else {
         await db.rankMatch.insert(recordData);
