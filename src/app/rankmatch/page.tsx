@@ -142,7 +142,8 @@ export default function RankMatchRecorder() {
 
   const filteredRecords = useMemo(() => {
     return records.filter(r => {
-      const recordSeason = (r as any).season || "2026 SPRING";
+      // 💡 フォールバックを無くし、レコードが持つ season 値と画面の selectedSeason をそのまま比較
+      const recordSeason = (r as any).season;
       return recordSeason === selectedSeason;
     });
   }, [records, selectedSeason]);
