@@ -383,8 +383,11 @@ export default function RankMatchRecorder() {
   };
 
   const handleExportCSV = () => {
-    const header = ["日時", "楽曲名", "難易度", "レベル", "対戦相手", "自分PERFECT", "自分GREAT", "自分GOOD", "自分BAD", "自分MISS", "自分ClearType", "相手PERFECT", "相手GREAT", "相手GOOD", "相手BAD", "相手MISS", "相手ClearType", "結果", "ポイント変動"];
+    // 💡 先頭に「シーズン」列を追加
+    const header = ["シーズン", "日時", "楽曲名", "難易度", "レベル", "対戦相手", "自分PERFECT", "自分GREAT", "自分GOOD", "自分BAD", "自分MISS", "自分ClearType", "相手PERFECT", "相手GREAT", "相手GOOD", "相手BAD", "相手MISS", "相手ClearType", "結果", "ポイント変動"];
+    
     const rows = records.map(r => [
+      r.season || "2026 SPRING", // 💡 レコードの持つシーズン（無ければ初期値）を書き出し
       new Date(r.timestamp).toLocaleString('ja-JP'),
       r.songName,
       r.difficulty,
@@ -408,9 +411,9 @@ export default function RankMatchRecorder() {
     const csv = [header, ...rows].map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
+    const a = document.createElement("a"); 
     a.href = url;
-    a.download = `pjsk_rankmatch_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `pjsk_rankmatch_${new Date().toISOString().slice(0,10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
